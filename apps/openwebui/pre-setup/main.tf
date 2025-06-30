@@ -1,43 +1,43 @@
-terraform {
-  required_providers {
-    rafay = {
-      source  = "RafaySystems/rafay"
-      version = ">= 1.0"
-    }
-    local = {
-      source  = "hashicorp/local"
-      version = ">= 2.5.1"
-    }
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 5.0"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = ">= 2.20.0"
+# --- Namespace and Identity Setup ---
+resource "random_string" "ns_suffix" {
+  length  = 5
+  special = false
+  upper   = false
+}
+
+locals {
+  namespace = "openwebui-${random_string.ns_suffix.result}"
+}
+
+# 1. Create the namespace directly using the authenticated kubernetes provider.
+resource "kubernetes_namespace" "app_namespace" {
+  metadata {
+    name = local.namespace
+  }
+}
+
+# 2. Create the Kubernetes Service Account inside the new namespace.
+resource "kubernetes_service_account" "openwebui" {
+  depends_on = [kubernetes_namespace.app_namespace]
+
+  metadata {
+    name      = "open-webui-pia"
+    namespace = kubernetes_namespace.app_namespace.metadata[0].name
+    annotations = {
+      "eks.amazonaws.com/role-arn" = var.openwebui_iam_role_arn
     }
   }
 }
 
-# --- Direct EKS Authentication (This part is correct and remains) ---
-provider "aws" {
-  region = var.aws_region
-}
-data "aws_eks_cluster" "cluster" {
-  name = var.cluster_name
-}
-data "aws_eks_cluster_auth" "cluster" {
-  name = var.cluster_name
-}
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.cluster.token
-}
+# 3. Create the AWS EKS Pod Identity Association.
+# This is the crucial link between the AWS role and the K8s Service Account.
+resource "aws_eks_pod_identity_association" "openwebui" {
+  depends_on = [kubernetes_service_account.openwebui]
 
-resource "aws_iam_role_policy_attachment" "secrets_access_to_openwebui" {
-  role       = var.openwebui_pod_identity_role_name
-  policy_arn = var.secrets_access_policy_arn
+  cluster_name    = var.cluster_name
+  namespace       = kubernetes_namespace.app_namespace.metadata[0].name
+  service_account = kubernetes_service_account.openwebui.metadata[0].name
+  role_arn        = var.openwebui_iam_role_arn
 }
 
 # --- Render all YAML files to disk using the simple filename pattern ---
@@ -45,13 +45,6 @@ resource "aws_iam_role_policy_attachment" "secrets_access_to_openwebui" {
 resource "local_file" "storage_class" {
   content  = templatefile("${path.module}/storage-class.yaml.tpl", {})
   filename = "storage-class.yaml"
-}
-
-resource "local_file" "namespace" {
-  content  = templatefile("${path.module}/namespace.yaml.tpl", {
-    namespace = var.namespace
-  })
-  filename = "namespace.yaml"
 }
 
 resource "local_file" "cluster_secret_store" {
@@ -63,7 +56,7 @@ resource "local_file" "cluster_secret_store" {
 
 resource "local_file" "external_secret" {
   content  = templatefile("${path.module}/external-secret.yaml.tpl", {
-    namespace      = var.namespace,
+    namespace      = local.namespace,
     db_secret_name = var.db_secret_name
   })
   filename = "external-secret.yaml"
@@ -71,37 +64,34 @@ resource "local_file" "external_secret" {
 
 resource "local_file" "pgvector_job" {
   content  = templatefile("${path.module}/pgvector-job.yaml.tpl", {
-    namespace = var.namespace
+    namespace = local.namespace
   })
   filename = "pgvector-job.yaml"
 }
 
 resource "rafay_workload" "openwebui_secrets_setup" {
   depends_on = [
+    aws_eks_pod_identity_association.openwebui,
     local_file.storage_class,
-    local_file.namespace,
     local_file.cluster_secret_store,
     local_file.external_secret
   ]
 
   metadata {  
-    name    = "openwebui-secrets-setup"
+    name    = "openwebui-secrets-setup-${random_string.ns_suffix.result}"
     project = var.project_name
   }
   spec {
-    namespace = var.namespace
+    namespace = local.namespace
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v0"
+    version = "v-${random_string.ns_suffix.result}"
     artifact {
       type = "Yaml"
       artifact {
         paths {
           name = "file://storage-class.yaml"
-        }
-        paths {
-          name = "file://namespace.yaml"
         }
         paths {
           name = "file://cluster-secret-store.yaml"
@@ -121,15 +111,15 @@ resource "rafay_workload" "openwebui_pgvector_job" {
   ]
 
   metadata {
-    name    = "openwebui-pgvector-job"
+    name    = "openwebui-pgvector-job-${random_string.ns_suffix.result}"
     project = var.project_name
   }
   spec {
-    namespace = var.namespace
+    namespace = local.namespace
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v0"
+    version = "v-${random_string.ns_suffix.result}"
     artifact {
       type = "Yaml"
       artifact {

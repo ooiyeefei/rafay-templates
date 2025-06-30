@@ -17,9 +17,3 @@ variable "region" {
   description = "The AWS region for the provider."
   type        = string
 }
-
-variable "vpc_id" {
-  description = "VPC ID (not used in S3 module but passed by Rafay)"
-  type        = string
-  default     = ""
-} 

@@ -1,52 +1,4 @@
-terraform {
-  required_providers {
-    rafay = {
-      source  = "RafaySystems/rafay"
-      version = ">= 1.0"
-    }
-    local = {
-      source  = "hashicorp/local"
-      version = ">= 2.5.1"
-    }
-    time = {
-      source = "hashicorp/time"
-      version = ">= 0.9.1"
-    }
-    kubernetes = {
-      source = "hashicorp/kubernetes"
-      version = ">= 2.20.0"
-    }
-    aws = {
-      source = "hashicorp/aws"
-      version = ">= 5.0"
-    }
-    null = {
-      source = "hashicorp/null"
-      version = ">= 3.0.0"
-    }
-  }
-}
-
-################################################################################
-# Direct EKS Authentication
-# This section ensures that any 'kubectl' commands run by provisioners
-# are correctly authenticated to the target EKS cluster.
-################################################################################
-
-provider "aws" {
-  region = var.aws_region
-}
-data "aws_eks_cluster" "cluster" {
-  name = var.cluster_name
-}
-data "aws_eks_cluster_auth" "cluster" {
-  name = var.cluster_name
-}
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.cluster.token
-}
+# --- Template File Rendering ---
 
 resource "local_file" "openwebui_values_yaml" {
   content  = templatefile("${path.module}/values.yaml.tpl", {
@@ -55,6 +7,16 @@ resource "local_file" "openwebui_values_yaml" {
   })
   filename = "values.yaml"
 }
+
+resource "local_file" "load_balancer_yaml" {
+  content = templatefile("${path.module}/lb.yaml.tpl", {
+    namespace = var.namespace
+    node_security_group_id = var.node_security_group_id
+  })
+  filename = "lb.yaml"
+}
+
+# --- Rafay Workload Deployment ---
 
 resource "rafay_workload" "openwebui_helm" {
   depends_on = [
@@ -70,7 +32,7 @@ resource "rafay_workload" "openwebui_helm" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v0"
+    version = "v-${var.deployment_suffix}"
     artifact {
       type = "Helm"
       artifact {
@@ -84,14 +46,6 @@ resource "rafay_workload" "openwebui_helm" {
       }
     }
   }
-}
-
-resource "local_file" "load_balancer_yaml" {
-  content = templatefile("${path.module}/lb.yaml.tpl", {
-    namespace = var.namespace
-    node_security_group_id = var.node_security_group_id
-  })
-  filename = "lb.yaml"
 }
 
 resource "rafay_workload" "openwebui_load_balancer" {
@@ -109,7 +63,7 @@ resource "rafay_workload" "openwebui_load_balancer" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v0"
+    version = "v-${var.deployment_suffix}"
     artifact {
       type = "Yaml"
       artifact {
@@ -129,8 +83,8 @@ resource "local_sensitive_file" "kubeconfig" {
     clusters = [{
       name = var.cluster_name
       cluster = {
-        server                   = data.aws_eks_cluster.cluster.endpoint
-        certificate-authority-data = data.aws_eks_cluster.cluster.certificate_authority[0].data
+        server                    = var.host
+        certificate-authority-data = var.certificateauthoritydata
       }
     }]
     contexts = [{
@@ -143,13 +97,13 @@ resource "local_sensitive_file" "kubeconfig" {
     users = [{
       name = "default"
       user = {
-        token = data.aws_eks_cluster_auth.cluster.token
+        client-certificate-data = var.clientcertificatedata
+        client-key-data         = var.clientkeydata
       }
     }]
   })
-  filename = "/tmp/kubeconfig"
+  filename = "/tmp/kubeconfig-${var.namespace}"
 }
-
 
 resource "time_sleep" "wait_for_lb_provisioning" {
   depends_on      = [rafay_workload.openwebui_load_balancer]
@@ -158,14 +112,16 @@ resource "time_sleep" "wait_for_lb_provisioning" {
 
 data "external" "load_balancer_info" {
   depends_on = [
-    rafay_workload.openwebui_load_balancer,
+    time_sleep.wait_for_lb_provisioning,
     local_sensitive_file.kubeconfig
   ]
 
   program = ["bash", "${path.module}/get-lb-hostname.sh"]
 
   query = {
-    namespace    = var.namespace
-    service_name = "open-webui-service"
+    # CRITICAL: Pass the path to the unique kubeconfig file.
+    kubeconfig_path = local_sensitive_file.kubeconfig.filename
+    namespace       = var.namespace
+    service_name    = "open-webui-service"
   }
 }

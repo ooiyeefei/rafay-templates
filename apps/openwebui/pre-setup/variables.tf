@@ -1,9 +1,3 @@
-variable "namespace" {
-  description = "Kubernetes namespace for Open WebUI and its related resources."
-  type        = string
-  default     = "vllm-inference"
-}
-
 variable "aws_region" {
   description = "AWS region where the EKS cluster and Secrets Manager reside."
   type        = string
@@ -14,32 +8,43 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "db_secret_name" {
-  description = "The name/ARN of the secret in AWS Secrets Manager containing the database credentials."
-  type        = string
-}
-
-variable "openwebui_pod_identity_role_name" {
-  description = "The name of the IAM role created for the OpenWebUI application."
-  type        = string
-}
-
 variable "project_name" {
   description = "Rafay Project Name"
   type        = string
 }
 
-variable "secrets_access_policy_arn" {
-  description = "The ARN of the IAM policy that grants access to the RDS database secret."
+variable "db_secret_name" {
+  description = "The name/ARN of the secret in AWS Secrets Manager containing the database credentials."
   type        = string
 }
 
-variable "openwebui_presetup_repo" {
-  description = "Git repository name for the yaml"
+variable "openwebui_iam_role_arn" {
+  description = "The ARN of the IAM role created for the OpenWebUI application pod identity."
   type        = string
 }
 
-variable "openwebui_presetup_repo_branch" {
-  description = "Git branch for the yaml"
+# --- Kubeconfig Variables (Injected from preceding template) ---
+
+variable "host" {
+  description = "The Kubernetes API server endpoint."
   type        = string
+  sensitive   = true
+}
+
+variable "clientcertificatedata" {
+  description = "The client certificate data for Kubernetes authentication."
+  type        = string
+  sensitive   = true
+}
+
+variable "clientkeydata" {
+  description = "The client key data for Kubernetes authentication."
+  type        = string
+  sensitive   = true
+}
+
+variable "certificateauthoritydata" {
+  description = "The certificate authority data for the Kubernetes cluster."
+  type        = string
+  sensitive   = true
 }

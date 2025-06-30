@@ -53,15 +53,6 @@ module "openwebui_pod_identity" {
     }
   ]
 
-  # Create Pod Identity Association
-  associations = {
-    openwebui = {
-      service_account      = "open-webui-pia"
-      namespace            = "vllm-inference"
-      cluster_name         = var.cluster_name
-    }
-  }
-
   tags = {
     Environment = var.name
   }
