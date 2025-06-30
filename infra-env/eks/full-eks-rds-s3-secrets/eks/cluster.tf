@@ -31,6 +31,49 @@ resource "aws_security_group" "eks_node_sg" {
 }
 
 ################################################################################
+# Essential Communication Rules
+# Step 2: Create the minimum rules needed for nodes to join the cluster.
+# These are created BEFORE the EKS module is called.
+################################################################################
+
+# Rule 1: Allow all outbound traffic from nodes to the internet.
+# NECESSARY for nodes to pull container images and talk to AWS APIs.
+resource "aws_security_group_rule" "nodes_egress_all" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  security_group_id = aws_security_group.eks_node_sg.id
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  description       = "Essential: Node all egress to internet"
+}
+
+# Rule 2: Allow the cluster control plane to communicate with the nodes.
+# NECESSARY for the control plane to manage kubelets and webhooks.
+resource "aws_security_group_rule" "cluster_ingress_to_nodes" {
+  type                     = "ingress"
+  from_port                = 0 # Allow all ports for simplicity, can be locked down further if needed.
+  to_port                  = 0
+  protocol                 = "-1" # Allow all protocols
+  security_group_id        = aws_security_group.eks_node_sg.id
+  source_security_group_id = aws_security_group.eks_cluster_sg.id
+  description              = "Essential: Allow cluster control plane to talk to nodes"
+}
+
+# Rule 3: Allow nodes to communicate with the cluster control plane API.
+# NECESSARY for nodes to register and get workloads.
+resource "aws_security_group_rule" "nodes_ingress_from_cluster" {
+  type                     = "ingress"
+  from_port                = 443 # HTTPS port for the API server
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster_sg.id
+  source_security_group_id = aws_security_group.eks_node_sg.id
+  description              = "Essential: Allow nodes to talk to cluster API"
+}
+
+################################################################################
 # Cluster
 ################################################################################
 
@@ -216,19 +259,6 @@ resource "aws_security_group_rule" "nodes_ingress_self" {
   description       = "Node to node all ports/protocols"
 }
 
-resource "aws_security_group_rule" "nodes_egress_all" {
-  depends_on = [module.eks]
-
-  type              = "egress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  security_group_id = aws_security_group.eks_node_sg.id
-  cidr_blocks       = ["0.0.0.0/0"]
-  ipv6_cidr_blocks  = ["::/0"]
-  description       = "Node all egress"
-}
-
 resource "aws_security_group_rule" "nodes_ingress_from_vpc_on_8080" {
   depends_on = [module.eks]
 
@@ -251,20 +281,6 @@ resource "aws_security_group_rule" "nodes_allow_internet_to_openwebui" {
   security_group_id = aws_security_group.eks_node_sg.id
   cidr_blocks       = ["0.0.0.0/0"]
   description       = "Allow internet traffic to OpenWebUI pods via NLB"
-}
-
-# --- Rules for the Cluster Security Group ---
-
-resource "aws_security_group_rule" "cluster_ingress_from_nodes" {
-  depends_on = [module.eks]
-  
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.eks_cluster_sg.id # <-- Use our SG ID
-  source_security_group_id = aws_security_group.eks_node_sg.id # <-- Use our SG ID
-  description              = "Node groups to cluster API"
 }
 
 ################################################################################
