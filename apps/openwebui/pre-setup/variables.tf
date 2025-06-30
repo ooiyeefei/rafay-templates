@@ -18,11 +18,6 @@ variable "db_secret_name" {
   type        = string
 }
 
-variable "openwebui_iam_role_arn" {
-  description = "The ARN of the IAM role created for the OpenWebUI application pod identity."
-  type        = string
-}
-
 # --- Kubeconfig Variables (Injected from preceding template) ---
 
 variable "host" {
