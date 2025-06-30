@@ -19,6 +19,9 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
+  cluster_security_group_enable_recommended_rules = false
+  node_security_group_enable_recommended_rules    = false
+
   # Add managed node groups
   eks_managed_node_groups = {
     # General purpose node group for basic workloads
