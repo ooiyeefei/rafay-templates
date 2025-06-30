@@ -1,4 +1,36 @@
 ################################################################################
+# Self-Managed Security Groups
+# We create these ourselves to have full, reliable control over their rules.
+################################################################################
+
+resource "aws_security_group" "eks_cluster_sg" {
+  name        = "${var.name}-cluster"
+  description = "EKS cluster security group"
+  vpc_id      = module.vpc.vpc_id
+
+  tags = merge(
+    local.tags,
+    {
+      Name = "${var.name}-cluster"
+    },
+  )
+}
+
+resource "aws_security_group" "eks_node_sg" {
+  name        = "${var.name}-nodes"
+  description = "EKS node shared security group"
+  vpc_id      = module.vpc.vpc_id
+
+  tags = merge(
+    local.tags,
+    {
+      "Name"                                   = "${var.name}-nodes"
+      "kubernetes.io/cluster/${var.name}" = "owned"
+    },
+  )
+}
+
+################################################################################
 # Cluster
 ################################################################################
 
@@ -19,8 +51,11 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  cluster_security_group_enable_recommended_rules = false
-  node_security_group_enable_recommended_rules    = false
+  create_cluster_security_group = false
+  cluster_security_group_id   = aws_security_group.eks_cluster_sg.id
+
+  create_node_security_group = false
+  node_security_group_id   = aws_security_group.eks_node_sg.id
 
   # Add managed node groups
   eks_managed_node_groups = {
@@ -167,12 +202,14 @@ module "eks" {
   tags = local.tags
 } 
 
+# --- Rules for the Node Security Group ---
+
 resource "aws_security_group_rule" "nodes_ingress_self" {
   type              = "ingress"
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
-  security_group_id = module.eks.node_security_group_id
+  security_group_id = aws_security_group.eks_node_sg.id
   self              = true
   description       = "Node to node all ports/protocols"
 }
@@ -182,7 +219,7 @@ resource "aws_security_group_rule" "nodes_egress_all" {
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
-  security_group_id = module.eks.node_security_group_id
+  security_group_id = aws_security_group.eks_node_sg.id
   cidr_blocks       = ["0.0.0.0/0"]
   ipv6_cidr_blocks  = ["::/0"]
   description       = "Node all egress"
@@ -193,7 +230,7 @@ resource "aws_security_group_rule" "nodes_ingress_from_vpc_on_8080" {
   from_port         = 8080
   to_port           = 8080
   protocol          = "tcp"
-  security_group_id = module.eks.node_security_group_id
+  security_group_id = aws_security_group.eks_node_sg.id
   cidr_blocks       = [module.vpc.vpc_cidr_block]
   description       = "Allow NLB traffic to nodes on application port 8080"
 }
@@ -203,7 +240,7 @@ resource "aws_security_group_rule" "nodes_allow_internet_to_openwebui" {
   from_port         = 80
   to_port           = 80
   protocol          = "tcp"
-  security_group_id = module.eks.node_security_group_id
+  security_group_id = aws_security_group.eks_node_sg.id
   cidr_blocks       = ["0.0.0.0/0"]
   description       = "Allow internet traffic to OpenWebUI pods via NLB"
 }
@@ -215,8 +252,8 @@ resource "aws_security_group_rule" "cluster_ingress_from_nodes" {
   from_port                = 443
   to_port                  = 443
   protocol                 = "tcp"
-  security_group_id        = module.eks.cluster_security_group_id
-  source_security_group_id = module.eks.node_security_group_id
+  security_group_id        = aws_security_group.eks_cluster_sg.id # <-- Use our SG ID
+  source_security_group_id = aws_security_group.eks_node_sg.id # <-- Use our SG ID
   description              = "Node groups to cluster API"
 }
 
