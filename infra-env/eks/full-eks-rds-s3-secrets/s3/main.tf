@@ -30,7 +30,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "openwebui_docs" {
 }
 
 # Create IAM role for Open WebUI using the EKS Pod Identity module
-module "openwebui_pod_identity" {
+module "openwebui_iam_role" {
   source = "terraform-aws-modules/eks-pod-identity/aws"
 
   name = "openwebui"
