@@ -205,6 +205,8 @@ module "eks" {
 # --- Rules for the Node Security Group ---
 
 resource "aws_security_group_rule" "nodes_ingress_self" {
+  depends_on = [module.eks]
+
   type              = "ingress"
   from_port         = 0
   to_port           = 0
@@ -215,6 +217,8 @@ resource "aws_security_group_rule" "nodes_ingress_self" {
 }
 
 resource "aws_security_group_rule" "nodes_egress_all" {
+  depends_on = [module.eks]
+
   type              = "egress"
   from_port         = 0
   to_port           = 0
@@ -226,6 +230,8 @@ resource "aws_security_group_rule" "nodes_egress_all" {
 }
 
 resource "aws_security_group_rule" "nodes_ingress_from_vpc_on_8080" {
+  depends_on = [module.eks]
+
   type              = "ingress"
   from_port         = 8080
   to_port           = 8080
@@ -236,6 +242,8 @@ resource "aws_security_group_rule" "nodes_ingress_from_vpc_on_8080" {
 }
 
 resource "aws_security_group_rule" "nodes_allow_internet_to_openwebui" {
+  depends_on = [module.eks]
+
   type              = "ingress"
   from_port         = 80
   to_port           = 80
@@ -248,6 +256,8 @@ resource "aws_security_group_rule" "nodes_allow_internet_to_openwebui" {
 # --- Rules for the Cluster Security Group ---
 
 resource "aws_security_group_rule" "cluster_ingress_from_nodes" {
+  depends_on = [module.eks]
+  
   type                     = "ingress"
   from_port                = 443
   to_port                  = 443
