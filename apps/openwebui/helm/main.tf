@@ -4,6 +4,7 @@ resource "local_file" "openwebui_values_yaml" {
   content  = templatefile("${path.module}/values.yaml.tpl", {
     s3_bucket_name = var.s3_bucket_name
     region         = var.aws_region
+    openwebui_iam_role_arn = var.openwebui_iam_role_arn
   })
   filename = "values.yaml"
 }
@@ -24,7 +25,7 @@ resource "rafay_workload" "openwebui_helm" {
   ]
 
   metadata {
-    name    = "openwebui"
+    name    = "openwebui-${var.namespace}"
     project = var.project_name
   }
   spec {
@@ -48,14 +49,25 @@ resource "rafay_workload" "openwebui_helm" {
   }
 }
 
+# Create the AWS EKS Pod Identity Association.
+# This is the crucial link between the AWS role and the K8s Service Account.
+resource "aws_eks_pod_identity_association" "openwebui" {
+  depends_on = [rafay_workload.openwebui_helm]
+
+  cluster_name    = var.cluster_name
+  namespace       = var.namespace
+  service_account = "open-webui-pia"
+  role_arn        = var.openwebui_iam_role_arn
+}
+
 resource "rafay_workload" "openwebui_load_balancer" {
   depends_on = [
-    rafay_workload.openwebui_helm,
+    aws_eks_pod_identity_association.openwebui,
     local_file.load_balancer_yaml
   ]
 
   metadata {
-    name    = "openwebui-load-balancer"
+    name    = "openwebui-lb-${var.namespace}"
     project = var.project_name
   }
   spec {

@@ -35,6 +35,11 @@ variable "node_security_group_id" {
   type        = string
 }
 
+variable "openwebui_iam_role_arn" {
+  description = "The ARN of the IAM role created for the OpenWebUI application pod identity."
+  type        = string
+}
+
 # --- Helm Chart Configuration ---
 
 variable "openwebui_helm_repo" {

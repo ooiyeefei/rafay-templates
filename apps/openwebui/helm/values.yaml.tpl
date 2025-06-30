@@ -11,6 +11,8 @@ persistence:
 
 # Configure service account for Pod Identity
 serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: ${openwebui_iam_role_arn}
   enable: true
   name: "open-webui-pia"  # Must match the service_account in the Pod Identity association
 

@@ -9,35 +9,11 @@ locals {
   namespace = "openwebui-${random_string.ns_suffix.result}"
 }
 
-# 1. Create the namespace directly using the authenticated kubernetes provider.
+# Create the namespace directly using the authenticated kubernetes provider.
 resource "kubernetes_namespace" "app_namespace" {
   metadata {
     name = local.namespace
   }
-}
-
-# 2. Create the Kubernetes Service Account inside the new namespace.
-resource "kubernetes_service_account" "openwebui" {
-  depends_on = [kubernetes_namespace.app_namespace]
-
-  metadata {
-    name      = "open-webui-pia"
-    namespace = kubernetes_namespace.app_namespace.metadata[0].name
-    annotations = {
-      "eks.amazonaws.com/role-arn" = var.openwebui_iam_role_arn
-    }
-  }
-}
-
-# 3. Create the AWS EKS Pod Identity Association.
-# This is the crucial link between the AWS role and the K8s Service Account.
-resource "aws_eks_pod_identity_association" "openwebui" {
-  depends_on = [kubernetes_service_account.openwebui]
-
-  cluster_name    = var.cluster_name
-  namespace       = kubernetes_namespace.app_namespace.metadata[0].name
-  service_account = kubernetes_service_account.openwebui.metadata[0].name
-  role_arn        = var.openwebui_iam_role_arn
 }
 
 # --- Render all YAML files to disk using the simple filename pattern ---
@@ -71,7 +47,7 @@ resource "local_file" "pgvector_job" {
 
 resource "rafay_workload" "openwebui_secrets_setup" {
   depends_on = [
-    aws_eks_pod_identity_association.openwebui,
+    kubernetes_namespace.app_namespace,
     local_file.storage_class,
     local_file.cluster_secret_store,
     local_file.external_secret
