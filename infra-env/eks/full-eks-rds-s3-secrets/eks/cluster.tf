@@ -161,58 +161,61 @@ module "eks" {
       most_recent = true
     }
   }
-
-  # Cluster security group
-  cluster_security_group_additional_rules = {
-    ingress_nodes_443 = {
-      description                = "Node groups to cluster API"
-      protocol                  = "tcp"
-      from_port                 = 443
-      to_port                   = 443
-      type                      = "ingress"
-      source_node_security_group = true
-    }
-  }
-
-  # Node security group
-  node_security_group_additional_rules = {
-    ingress_self_all = {
-      description = "Node to node all ports/protocols"
-      protocol    = "-1"
-      from_port   = 0
-      to_port     = 0
-      type        = "ingress"
-      self        = true
-    }
-    egress_all = {
-      description      = "Node all egress"
-      protocol         = "-1"
-      from_port        = 0
-      to_port          = 0
-      type             = "egress"
-      cidr_blocks      = ["0.0.0.0/0"]
-      ipv6_cidr_blocks = ["::/0"]
-    }
-    ingress_from_vpc_on_8080 = {
-      description = "Allow NLB traffic to nodes on application port 8080"
-      protocol    = "tcp"
-      from_port   = 8080
-      to_port     = 8080
-      type        = "ingress"
-      cidr_blocks = [module.vpc.vpc_cidr_block]
-    }
-    allow_internet_to_openwebui_pods = {
-      description = "Allow internet traffic to OpenWebUI pods via NLB"
-      protocol    = "tcp"
-      from_port   = 80
-      to_port     = 80
-      type        = "ingress"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
-  }
-
   tags = local.tags
 } 
+
+resource "aws_security_group_rule" "nodes_ingress_self" {
+  type              = "ingress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  security_group_id = module.eks.node_security_group_id
+  self              = true
+  description       = "Node to node all ports/protocols"
+}
+
+resource "aws_security_group_rule" "nodes_egress_all" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  security_group_id = module.eks.node_security_group_id
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  description       = "Node all egress"
+}
+
+resource "aws_security_group_rule" "nodes_ingress_from_vpc_on_8080" {
+  type              = "ingress"
+  from_port         = 8080
+  to_port           = 8080
+  protocol          = "tcp"
+  security_group_id = module.eks.node_security_group_id
+  cidr_blocks       = [module.vpc.vpc_cidr_block]
+  description       = "Allow NLB traffic to nodes on application port 8080"
+}
+
+resource "aws_security_group_rule" "nodes_allow_internet_to_openwebui" {
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  security_group_id = module.eks.node_security_group_id
+  cidr_blocks       = ["0.0.0.0/0"]
+  description       = "Allow internet traffic to OpenWebUI pods via NLB"
+}
+
+# --- Rules for the Cluster Security Group ---
+
+resource "aws_security_group_rule" "cluster_ingress_from_nodes" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = module.eks.cluster_security_group_id
+  source_security_group_id = module.eks.node_security_group_id
+  description              = "Node groups to cluster API"
+}
 
 ################################################################################
 # Create the Kubernetes Service Account
