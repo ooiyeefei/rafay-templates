@@ -32,6 +32,10 @@ module "eks" {
       instance_types = ["t3.medium", "t3.large"]
       capacity_type  = "ON_DEMAND"
 
+      iam_role_additional_policies = {
+        AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      }
+
       # Enable detailed monitoring
       enable_monitoring = true
 
