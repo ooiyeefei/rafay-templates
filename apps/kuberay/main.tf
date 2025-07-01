@@ -11,6 +11,12 @@ locals {
   path      = "/kuberay-${random_string.instance_suffix.result}"
 }
 
+resource "kubernetes_namespace" "app_namespace" {
+  metadata {
+    name = local.namespace
+  }
+}
+
 # --- Core Application Deployment via Helm ---
 
 resource "helm_release" "apply-volcano" {
@@ -25,13 +31,17 @@ resource "helm_release" "apply-volcano" {
 }
 
 resource "helm_release" "kuberay-operator" {
-  depends_on = [helm_release.apply-volcano]
+  depends_on = [
+    kubernetes_namespace.app_namespace,
+    helm_release.apply-volcano
+  ]
+  
   name       = "kuberay-operator"
   repository = "https://ray-project.github.io/kuberay-helm/"
   chart      = "kuberay-operator"
   version    = var.kuberay_version
   namespace  = local.namespace
-  create_namespace = true
+  create_namespace = false
 
   values = [
     <<-EOF
@@ -60,7 +70,10 @@ resource "helm_release" "ray-cluster" {
 # --- Create an Ingress to Route Traffic via the Shared ALB ---
 
 resource "kubernetes_ingress_v1" "kuberay_ingress" {
-  depends_on = [helm_release.ray-cluster]
+  depends_on = [
+    kubernetes_namespace.app_namespace,
+    helm_release.ray-cluster
+  ]
 
   metadata {
     name      = "kuberay-dashboard-ingress"
