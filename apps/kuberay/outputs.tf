@@ -1,6 +1,6 @@
 output "kuberay_dashboard_url" {
   description = "The public URL to access the KubeRay dashboard."
-  value       = "http://${data.external.shared_alb_info.result.hostname}${local.path}"
+  value       = "http://${var.shared_alb_hostname}${local.path}"
 }
 
 output "namespace" {
