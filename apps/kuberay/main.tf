@@ -36,7 +36,7 @@ resource "local_sensitive_file" "kubeconfig_for_script" {
 data "external" "shared_alb_info" {
   depends_on = [local_sensitive_file.kubeconfig_for_script]
 
-  program = ["bash", "${path.module}/get-shared-alb-hostname.sh"]
+  program = ["bash", "${path.module}/get-lb-hostname.sh"]
 
   query = {
     kubeconfig_path = local_sensitive_file.kubeconfig_for_script.filename
