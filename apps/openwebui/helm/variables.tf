@@ -30,11 +30,6 @@ variable "s3_bucket_name" {
   type        = string
 }
 
-variable "node_security_group_id" {
-  description = "The ID of the worker node security group to be used by the NLB."
-  type        = string
-}
-
 variable "openwebui_iam_role_arn" {
   description = "The ARN of the IAM role created for the OpenWebUI application pod identity."
   type        = string
