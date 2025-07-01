@@ -77,12 +77,11 @@ resource "aws_security_group_rule" "nodes_ingress_from_cluster" {
 # Cluster
 ################################################################################
 locals {
-  # 1. Define the user's desired overrides in small, clean maps.
+  # 1. User-defined settings remain the same.
   gpu_user_settings = {
     enabled      = true
     desired_size = var.gpu_node_count
     min_size     = var.gpu_node_count > 0 ? 1 : 0
-    # You can add max_size here if you want it to be user-configurable too.
   }
 
   spot_user_settings = {
@@ -91,25 +90,27 @@ locals {
     min_size     = var.spot_node_count > 0 ? 1 : 0
   }
 
-  # 2. Build the final configurations by iterating and conditionally merging.
-  #    This replaces the need for the 'deepmerge' function.
+  # 2. Build the final configurations by conditionally merging.
+  #    This version solves the type consistency error.
   final_configs = {
-    # We loop through each top-level key ("general", "gpu", "spot") in the base variable.
     for key, base_config in var.node_group_configurations :
-      # The key for the new map is the same (e.g., "gpu").
-      key => merge(
-        # The value starts with the entire base configuration for that key.
-        base_config,
+    key => merge(
+      base_config,
 
-        # We then conditionally merge the user's GPU settings on top of it.
-        # This expression says: "If the current key is 'gpu' AND the user enabled it,
-        # then use the gpu_user_settings map. Otherwise, use an empty map."
-        # Merging with an empty map does nothing.
-        (key == "gpu" && var.enable_gpu_nodes ? local.gpu_user_settings : {}),
+      # GPU Override:
+      # This expression now does two things:
+      # a) It uses a null map in the 'false' case to satisfy Terraform's type checker.
+      # b) It then filters out any keys with 'null' values, resulting in an empty map ({})
+      #    if the condition is false. This prevents accidental overwrites on other node groups.
+      {
+        for k, v in (key == "gpu" && var.enable_gpu_nodes ? local.gpu_user_settings : { enabled = null, desired_size = null, min_size = null }) : k => v if v != null
+      },
 
-        # We do the exact same conditional merge for the Spot settings.
-        (key == "spot" && var.enable_spot_nodes ? local.spot_user_settings : {})
-      )
+      # SPOT Override (same pattern):
+      {
+        for k, v in (key == "spot" && var.enable_spot_nodes ? local.spot_user_settings : { enabled = null, desired_size = null, min_size = null }) : k => v if v != null
+      }
+    )
   }
 
   # 3. This final block remains UNCHANGED. It takes the correctly-built 'final_configs'
@@ -138,7 +139,6 @@ locals {
     } if config.enabled
   }
 }
-
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
