@@ -45,16 +45,17 @@ variable "kuberay_worker_config" {
   type        = map(string)
 }
 
+# --- OPTIONAL: Advanced Scheduling ---
 variable "kuberay_worker_tolerations" {
-  description = "Tolerations for worker pods."
+  description = "Optional: A list of tolerations to apply to Ray worker pods, allowing them to run on tainted nodes (e.g., GPU nodes)."
   type        = list(any)
-  default     = []
+  default     = null # If unspecified, no tolerations will be applied.
 }
 
 variable "kuberay_worker_node_selector" {
-  description = "Node selector for worker pods."
+  description = "Optional: A map of key-value pairs for node selection, forcing Ray workers to run on nodes with specific labels."
   type        = map(string)
-  default     = {}
+  default     = null # If unspecified, workers can run on any node.
 }
 
 # --- Kubeconfig Variables (Injected from a preceding kubeconfig module) ---

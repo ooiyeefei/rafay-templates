@@ -50,8 +50,8 @@ resource "helm_release" "ray-cluster" {
   values = [templatefile("${path.module}/templates/raycluster-values.yaml.tftpl", {
     head_config          = var.kuberay_head_config
     worker_config        = var.kuberay_worker_config
-    worker_tolerations   = length(var.kuberay_worker_tolerations) > 0 ? jsonencode(var.kuberay_worker_tolerations) : null
-    worker_node_selector = length(var.kuberay_worker_node_selector) > 0 ? jsonencode(var.kuberay_worker_node_selector) : null
+    worker_tolerations   = var.kuberay_worker_tolerations
+    worker_node_selector = var.kuberay_worker_node_selector
   })]
 }
 
