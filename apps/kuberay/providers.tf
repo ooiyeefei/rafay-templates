@@ -23,7 +23,7 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = var.host
     client_certificate     = base64decode(var.clientcertificatedata)
     client_key             = base64decode(var.clientkeydata)
