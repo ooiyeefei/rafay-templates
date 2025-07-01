@@ -36,13 +36,25 @@ variable "enable_volcano" {
 
 # --- KubeRay Cluster Configuration ---
 variable "kuberay_head_config" {
-  description = "Configuration for the Ray head node."
+  description = "Optional: Configuration for the Ray head node's CPU and memory."
   type        = map(string)
+  default = {
+    cpu_request    = "500m"  # 0.5 CPU core
+    memory_request = "1Gi"   # 1 Gibibyte RAM
+    cpu_limit      = "1"     # 1 CPU core
+    memory_limit   = "2Gi"   # 2 Gibibytes RAM
+  }
 }
 
 variable "kuberay_worker_config" {
-  description = "Configuration for the Ray worker nodes."
+  description = "Optional: Configuration for the Ray worker nodes' CPU and memory."
   type        = map(string)
+  default = {
+    cpu_request    = "500m"
+    memory_request = "1Gi"
+    cpu_limit      = "1"
+    memory_limit   = "2Gi"
+  }
 }
 
 # --- OPTIONAL: Advanced Scheduling ---
