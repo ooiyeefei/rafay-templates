@@ -83,7 +83,7 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
             service {
               # This is the default service name from the KubeRay Helm chart.
               name = "ray-cluster-kuberay-head-svc"
-              port = {
+              port {
                 number = 8265
               }
             }
