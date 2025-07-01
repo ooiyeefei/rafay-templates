@@ -77,41 +77,45 @@ resource "aws_security_group_rule" "nodes_ingress_from_cluster" {
 # Cluster
 ################################################################################
 locals {
-  # 1. Start with the base platform profiles defined in our variable.
-  base_configs = var.node_group_configurations
+  # 1. Define the user's desired overrides in small, clean maps.
+  gpu_user_settings = {
+    enabled      = true
+    desired_size = var.gpu_node_count
+    min_size     = var.gpu_node_count > 0 ? 1 : 0
+    # You can add max_size here if you want it to be user-configurable too.
+  }
 
-  # 2. Conditionally create an override for the GPU group based on user input.
-  #    The deepmerge() function is crucial here. It allows us to only override the fields
-  #    we care about (like 'enabled' and 'desired_size') while keeping all the other
-  #    details (like instance_types, disk_size, taints) from the base profile.
-  gpu_override = var.enable_gpu_nodes ? {
-    gpu = {
-      enabled      = true
-      desired_size = var.gpu_node_count
-      min_size     = var.gpu_node_count > 0 ? 1 : 0 # A common safety check
-    }
-  } : {}
+  spot_user_settings = {
+    enabled      = true
+    desired_size = var.spot_node_count
+    min_size     = var.spot_node_count > 0 ? 1 : 0
+  }
 
-  # 3. Conditionally create an override for the Spot group.
-  spot_override = var.enable_spot_nodes ? {
-    spot = {
-      enabled      = true
-      desired_size = var.spot_node_count
-      min_size     = var.spot_node_count > 0 ? 1 : 0
-    }
-  } : {}
+  # 2. Build the final configurations by iterating and conditionally merging.
+  #    This replaces the need for the 'deepmerge' function.
+  final_configs = {
+    # We loop through each top-level key ("general", "gpu", "spot") in the base variable.
+    for key, base_config in var.node_group_configurations :
+      # The key for the new map is the same (e.g., "gpu").
+      key => merge(
+        # The value starts with the entire base configuration for that key.
+        base_config,
 
-  # 4. Combine the base profiles with the user's overrides.
-  #    deepmerge() is used instead of merge() to intelligently combine the nested objects.
-  #    The rightmost map's values take precedence for any conflicting keys.
-  final_configs = deepmerge(local.base_configs, local.gpu_override, local.spot_override)
+        # We then conditionally merge the user's GPU settings on top of it.
+        # This expression says: "If the current key is 'gpu' AND the user enabled it,
+        # then use the gpu_user_settings map. Otherwise, use an empty map."
+        # Merging with an empty map does nothing.
+        (key == "gpu" && var.enable_gpu_nodes ? local.gpu_user_settings : {}),
 
-  # 5. This is the final logic that prepares the input for the EKS module.
-  #    It iterates through our final combined map and builds a new map containing
-  #    only the node groups where 'enabled' is ultimately true.
+        # We do the exact same conditional merge for the Spot settings.
+        (key == "spot" && var.enable_spot_nodes ? local.spot_user_settings : {})
+      )
+  }
+
+  # 3. This final block remains UNCHANGED. It takes the correctly-built 'final_configs'
+  #    map from above and prepares it for the EKS module by filtering out disabled groups.
   enabled_node_groups = {
     for key, config in local.final_configs : key => {
-      # This builds the structure that the terraform-aws-modules/eks/aws module expects.
       name                         = key
       min_size                     = config.min_size
       max_size                     = config.max_size
@@ -122,8 +126,6 @@ locals {
       disk_type                    = config.disk_type
       labels                       = merge({ Environment = var.name }, config.labels)
       taints                       = config.taints
-
-      # Add other static/shared settings for all node groups here
       subnet_ids                   = module.vpc.private_subnets
       enable_monitoring            = true
       iam_role_additional_policies = {
