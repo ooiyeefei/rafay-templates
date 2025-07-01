@@ -396,3 +396,37 @@ resource "kubernetes_ingress_v1" "shared_alb_ingress" {
     helm_release.aws_load_balancer_controller
   ]
 }
+
+resource "local_sensitive_file" "kubeconfig_for_script" {
+  content = yamlencode({
+    apiVersion      = "v1"
+    kind            = "Config"
+    current-context = "default"
+    clusters = [{
+      name = module.eks.cluster_name
+      cluster = {
+        server                   = module.eks.cluster_endpoint
+        certificate-authority-data = module.eks.cluster_certificate_authority_data
+      }
+    }]
+    contexts = [{ name = "default", context = { cluster = module.eks.cluster_name, user = "default" } }]
+    users    = [{ name = "default", user = { token = data.aws_eks_cluster_auth.this.token } }]
+  })
+  filename = "/tmp/kubeconfig-${var.name}-ingress"
+}
+
+data "external" "shared_alb_info" {
+  # This depends_on implicitly waits for the Ingress to be created before polling.
+  depends_on = [
+    kubernetes_ingress_v1.shared_alb_ingress,
+    local_sensitive_file.kubeconfig_for_script
+  ]
+
+  program = ["bash", "${path.module}/get-ingress-hostname.sh"]
+
+  query = {
+    kubeconfig_path = local_sensitive_file.kubeconfig_for_script.filename
+    namespace       = "kube-system"
+    ingress_name    = "shared-alb-ingress"
+  }
+}

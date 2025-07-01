@@ -74,16 +74,7 @@ output "node_security_group_id" {
   value       = module.eks.node_security_group_id
 }
 
-data "kubernetes_ingress_v1" "shared_alb" {
-  metadata {
-    name      = "shared-alb-ingress"
-    namespace = "kube-system"
-  }
-  
-  depends_on = [kubernetes_ingress_v1.shared_alb_ingress]
-}
-
 output "shared_ingress_hostname" {
   description = "The public DNS hostname of the shared Application Load Balancer."
-  value       = data.kubernetes_ingress_v1.shared_alb.status[0].load_balancer[0].ingress[0].hostname
+  value       = data.external.shared_alb_info.result.hostname
 }

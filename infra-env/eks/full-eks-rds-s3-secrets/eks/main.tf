@@ -2,6 +2,10 @@ provider "aws" {
   region = var.region
 }
 
+data "aws_eks_cluster_auth" "this" {
+  name = module.eks.cluster_name
+}
+
 # This provider is required for ECR to authenticate with public repos. Please note ECR authentication requires us-east-1 as region hence its hardcoded below.
 # If your region is same as us-east-1 then you can just use one aws provider
 provider "aws" {
