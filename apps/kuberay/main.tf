@@ -90,7 +90,7 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
   spec {
     rule {
       host = var.shared_alb_hostname
-      
+
       http {
         path {
           # Route traffic based on the unique, dynamic path.
@@ -99,7 +99,7 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
           backend {
             service {
               # This is the default service name from the KubeRay Helm chart.
-              name = "ray-cluster-kuberay-head-svc"
+              name = "ray-cluster-head-svc"
               port {
                 number = 8265
               }
