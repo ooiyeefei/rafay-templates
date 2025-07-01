@@ -76,6 +76,67 @@ resource "aws_security_group_rule" "nodes_ingress_from_cluster" {
 ################################################################################
 # Cluster
 ################################################################################
+locals {
+  # 1. Start with the base platform profiles defined in our variable.
+  base_configs = var.node_group_configurations
+
+  # 2. Conditionally create an override for the GPU group based on user input.
+  #    The deepmerge() function is crucial here. It allows us to only override the fields
+  #    we care about (like 'enabled' and 'desired_size') while keeping all the other
+  #    details (like instance_types, disk_size, taints) from the base profile.
+  gpu_override = var.enable_gpu_nodes ? {
+    gpu = {
+      enabled      = true
+      desired_size = var.gpu_node_count
+      min_size     = var.gpu_node_count > 0 ? 1 : 0 # A common safety check
+    }
+  } : {}
+
+  # 3. Conditionally create an override for the Spot group.
+  spot_override = var.enable_spot_nodes ? {
+    spot = {
+      enabled      = true
+      desired_size = var.spot_node_count
+      min_size     = var.spot_node_count > 0 ? 1 : 0
+    }
+  } : {}
+
+  # 4. Combine the base profiles with the user's overrides.
+  #    deepmerge() is used instead of merge() to intelligently combine the nested objects.
+  #    The rightmost map's values take precedence for any conflicting keys.
+  final_configs = deepmerge(local.base_configs, local.gpu_override, local.spot_override)
+
+  # 5. This is the final logic that prepares the input for the EKS module.
+  #    It iterates through our final combined map and builds a new map containing
+  #    only the node groups where 'enabled' is ultimately true.
+  enabled_node_groups = {
+    for key, config in local.final_configs : key => {
+      # This builds the structure that the terraform-aws-modules/eks/aws module expects.
+      name                         = key
+      min_size                     = config.min_size
+      max_size                     = config.max_size
+      desired_size                 = config.desired_size
+      instance_types               = config.instance_types
+      capacity_type                = config.capacity_type
+      disk_size                    = config.disk_size
+      disk_type                    = config.disk_type
+      labels                       = merge({ Environment = var.name }, config.labels)
+      taints                       = config.taints
+
+      # Add other static/shared settings for all node groups here
+      subnet_ids                   = module.vpc.private_subnets
+      enable_monitoring            = true
+      iam_role_additional_policies = {
+        AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      }
+      tags = {
+        "Name"     = "${var.name}-${key}-node-group"
+        "ExtraTag" = "${key}-node-group"
+      }
+    } if config.enabled
+  }
+}
+
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -101,128 +162,7 @@ module "eks" {
   node_security_group_id   = aws_security_group.eks_node_sg.id
 
   # Add managed node groups
-  eks_managed_node_groups = {
-    # General purpose node group for basic workloads
-    general = {
-      name = "general"
-
-      subnet_ids = module.vpc.private_subnets
-
-      min_size     = 1
-      max_size     = 5
-      desired_size = 2
-
-      instance_types = ["t3.medium", "t3.large"]
-      capacity_type  = "ON_DEMAND"
-
-      iam_role_additional_policies = {
-        AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-      }
-
-      # Enable detailed monitoring
-      enable_monitoring = true
-
-      # Disk configuration
-      disk_size = 20
-      disk_type = "gp3"
-
-      # Labels and taints
-      labels = {
-        Environment = var.name
-        NodeGroup   = "general"
-      }
-
-      # Tags
-      tags = {
-        ExtraTag = "general-node-group"
-      }
-    }
-
-    # GPU node group for ML workloads
-    gpu = {
-      name = "gpu"
-
-      subnet_ids = module.vpc.private_subnets
-
-      min_size     = 0
-      max_size     = 3
-      desired_size = 0  # Start with 0, scale up as needed
-
-      instance_types = ["g5.xlarge", "g5.2xlarge", "g5.4xlarge"]
-      capacity_type  = "ON_DEMAND"
-
-      iam_role_additional_policies = {
-        AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-      }
-
-      # Enable detailed monitoring
-      enable_monitoring = true
-
-      # Disk configuration
-      disk_size = 50
-      disk_type = "gp3"
-
-      # Labels and taints for GPU workloads
-      labels = {
-        Environment = var.name
-        NodeGroup   = "gpu"
-        accelerator = "nvidia"
-      }
-
-      taints = [{
-        key    = "nvidia.com/gpu"
-        value  = "true"
-        effect = "NO_SCHEDULE"
-      }]
-
-      # Tags
-      tags = {
-        ExtraTag = "gpu-node-group"
-      }
-    }
-
-    # Spot node group for cost optimization
-    spot = {
-      name = "spot"
-
-      subnet_ids = module.vpc.private_subnets
-
-      min_size     = 0
-      max_size     = 5
-      desired_size = 0  # Start with 0, scale up as needed
-
-      instance_types = ["t3.medium", "t3.large", "c6i.large", "m6i.large"]
-      capacity_type  = "SPOT"
-
-      iam_role_additional_policies = {
-        AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-      }
-
-      # Enable detailed monitoring
-      enable_monitoring = true
-
-      # Disk configuration
-      disk_size = 20
-      disk_type = "gp3"
-
-      # Labels and taints for spot instances
-      labels = {
-        Environment = var.name
-        NodeGroup   = "spot"
-      }
-
-      taints = [{
-        key    = "spot"
-        value  = "true"
-        effect = "NO_SCHEDULE"
-      }]
-
-      # Tags
-      tags = {
-        ExtraTag = "spot-node-group"
-      }
-    }
-  }
+  eks_managed_node_groups = local.enabled_node_groups
 
   # Cluster add-ons
   cluster_addons = {
