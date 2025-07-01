@@ -17,6 +17,32 @@ resource "kubernetes_namespace" "app_namespace" {
   }
 }
 
+# --- DISCOVER THE SHARED ALB HOSTNAME (NEW LOGIC) ---
+resource "local_sensitive_file" "kubeconfig_for_script" {
+  content = yamlencode({
+    apiVersion      = "v1"
+    kind            = "Config"
+    current-context = "default"
+    clusters = [{
+      name = var.cluster_name
+      cluster = { server = var.host, certificate-authority-data = var.certificateauthoritydata }
+    }]
+    contexts = [{ name = "default", context = { cluster = var.cluster_name, user = "default" } }]
+    users    = [{ name = "default", user = { client-certificate-data = var.clientcertificatedata, client-key-data = var.clientkeydata } }]
+  })
+  filename = "/tmp/kubeconfig-${local.namespace}"
+}
+
+data "external" "shared_alb_info" {
+  depends_on = [local_sensitive_file.kubeconfig_for_script]
+
+  program = ["bash", "${path.module}/get-shared-alb-hostname.sh"]
+
+  query = {
+    kubeconfig_path = local_sensitive_file.kubeconfig_for_script.filename
+  }
+}
+
 # --- Core Application Deployment via Helm ---
 
 resource "helm_release" "apply-volcano" {
@@ -81,9 +107,11 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
     annotations = {
       # This targets your existing shared ALB.
       "kubernetes.io/ingress.class" = "alb"
+      "alb.ingress.kubernetes.io/group.name" = "shared-apps-group"
       # This annotation is crucial for most apps to work correctly behind a path.
       # It strips the "/kuberay-xyz" prefix before sending to the pod.
       "alb.ingress.kubernetes.io/rewrite-target" = "/"
+      "alb.ingress.kubernetes.io/group.order" = "10"
     }
   }
 

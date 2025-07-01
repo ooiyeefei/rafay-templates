@@ -9,12 +9,6 @@ variable "project_name" {
   type        = string
 }
 
-# --- Shared Infrastructure ---
-variable "shared_alb_hostname" {
-  description = "The public DNS name of the shared Application Load Balancer for the cluster."
-  type        = string
-}
-
 # --- KubeRay Helm Chart Configuration ---
 variable "kuberay_version" {
   description = "Version of the KubeRay Helm charts to use."
