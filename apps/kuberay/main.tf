@@ -11,12 +11,6 @@ locals {
   path      = "/kuberay-${random_string.instance_suffix.result}"
 }
 
-resource "kubernetes_namespace" "app_namespace" {
-  metadata {
-    name = local.namespace
-  }
-}
-
 # --- Core Application Deployment via Helm ---
 
 resource "helm_release" "apply-volcano" {
@@ -26,9 +20,8 @@ resource "helm_release" "apply-volcano" {
   repository = "https://volcano-sh.github.io/helm-charts/"
   chart      = "volcano"
   version    = var.volcano_version
-  namespace  = local.namespace
-
-  depends_on = [kubernetes_namespace.app_namespace]
+  namespace  = "volcano-system"
+  create_namespace = true
 }
 
 resource "helm_release" "kuberay-operator" {
@@ -38,6 +31,14 @@ resource "helm_release" "kuberay-operator" {
   chart      = "kuberay-operator"
   version    = var.kuberay_version
   namespace  = local.namespace
+  create_namespace = true
+
+  values = [
+    <<-EOF
+    batchScheduler:
+      enabled: ${var.enable_volcano}
+    EOF
+  ]
 }
 
 resource "helm_release" "ray-cluster" {
