@@ -10,7 +10,6 @@ metadata:
 spec:
   selector:
     app.kubernetes.io/component: open-webui
-    app.kubernetes.io/instance: openwebui
   type: LoadBalancer
   ports:
   - protocol: TCP
