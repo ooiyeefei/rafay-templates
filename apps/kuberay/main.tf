@@ -73,10 +73,9 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
   }
 
   spec {
-    # No 'host' field is needed, as we are routing by path.
-    rules {
+    rule {
       http {
-        paths {
+        path {
           # Route traffic based on the unique, dynamic path.
           path      = local.path
           path_type = "Prefix"
@@ -85,7 +84,6 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
               # This is the default service name from the KubeRay Helm chart.
               name = "ray-cluster-kuberay-head-svc"
               port = {
-                # This is the default port for the Ray dashboard.
                 number = 8265
               }
             }
