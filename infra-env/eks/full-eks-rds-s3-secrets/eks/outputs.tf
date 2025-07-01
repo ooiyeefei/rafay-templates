@@ -45,12 +45,8 @@ output "node_iam_role_name" {
 
 # Node group outputs
 output "node_groups" {
-  description = "EKS managed node groups"
-  value = {
-    general = module.eks.eks_managed_node_groups["general"]
-    gpu     = module.eks.eks_managed_node_groups["gpu"]
-    spot    = module.eks.eks_managed_node_groups["spot"]
-  }
+  description = "A map of all EKS managed node groups that were actually created. The keys of the map are the names of the node groups."
+  value       = module.eks.eks_managed_node_groups
 }
 
 output "cluster_oidc_issuer_url" {

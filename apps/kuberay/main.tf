@@ -1,0 +1,97 @@
+# --- Dynamic Namespace and Path Creation ---
+resource "random_string" "instance_suffix" {
+  length  = 5
+  special = false
+  upper   = false
+}
+
+locals {
+  namespace = "kuberay-${random_string.instance_suffix.result}"
+  path      = "/kuberay-${random_string.instance_suffix.result}"
+}
+
+resource "kubernetes_namespace" "app_namespace" {
+  metadata {
+    name = local.namespace
+  }
+}
+
+# --- Core Application Deployment via Helm ---
+
+resource "helm_release" "apply-volcano" {
+  count = var.enable_volcano == "true" ? 1 : 0
+
+  name       = "volcano"
+  repository = "https://volcano-sh.github.io/helm-charts/"
+  chart      = "volcano"
+  version    = var.volcano_version
+  namespace  = local.namespace
+
+  depends_on = [kubernetes_namespace.app_namespace]
+}
+
+resource "helm_release" "kuberay-operator" {
+  depends_on = [helm_release.apply-volcano]
+  name       = "kuberay-operator"
+  repository = "https://ray-project.github.io/kuberay-helm/"
+  chart      = "kuberay-operator"
+  version    = var.kuberay_version
+  namespace  = local.namespace
+}
+
+resource "helm_release" "ray-cluster" {
+  depends_on = [helm_release.kuberay-operator]
+  name       = "ray-cluster"
+  repository = "https://ray-project.github.io/kuberay-helm/"
+  chart      = "ray-cluster"
+  version    = var.kuberay_version
+  namespace  = local.namespace
+
+  values = [templatefile("${path.module}/templates/raycluster-values.yaml.tftpl", {
+    head_config          = var.kuberay_head_config
+    worker_config        = var.kuberay_worker_config
+    worker_tolerations   = length(var.kuberay_worker_tolerations) > 0 ? jsonencode(var.kuberay_worker_tolerations) : null
+    worker_node_selector = length(var.kuberay_worker_node_selector) > 0 ? jsonencode(var.kuberay_worker_node_selector) : null
+  })]
+}
+
+# --- Create an Ingress to Route Traffic via the Shared ALB ---
+
+resource "kubernetes_ingress_v1" "kuberay_ingress" {
+  depends_on = [helm_release.ray-cluster]
+
+  metadata {
+    name      = "kuberay-dashboard-ingress"
+    namespace = local.namespace
+    annotations = {
+      # This targets your existing shared ALB.
+      "kubernetes.io/ingress.class" = "alb"
+      # This annotation is crucial for most apps to work correctly behind a path.
+      # It strips the "/kuberay-xyz" prefix before sending to the pod.
+      "alb.ingress.kubernetes.io/rewrite-target" = "/"
+    }
+  }
+
+  spec {
+    # No 'host' field is needed, as we are routing by path.
+    rules {
+      http {
+        paths {
+          # Route traffic based on the unique, dynamic path.
+          path      = local.path
+          path_type = "Prefix"
+          backend {
+            service {
+              # This is the default service name from the KubeRay Helm chart.
+              name = "ray-cluster-kuberay-head-svc"
+              port = {
+                # This is the default port for the Ray dashboard.
+                number = 8265
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
