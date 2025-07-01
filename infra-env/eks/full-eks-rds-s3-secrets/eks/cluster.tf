@@ -361,3 +361,38 @@ resource "helm_release" "aws_load_balancer_controller" {
     }
   ]
 }
+
+################################################################################
+# Create Shared ALB
+# This Ingress object doesn't point to a real app. Its only job is
+# to exist, which forces the AWS controller to create a shared ALB.
+# We'll create it in the kube-system namespace for simplicity.
+################################################################################
+
+resource "kubernetes_ingress_v1" "shared_alb_ingress" {
+
+  metadata {
+    name      = "shared-alb-ingress"
+    namespace = "kube-system"
+    annotations = {
+      "kubernetes.io/ingress.class" = "alb"
+      "alb.ingress.kubernetes.io/scheme" = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type" = "ip"
+    }
+  }
+
+  spec {
+    default_backend {
+      service {
+        name = "default-http-backend"
+        port {
+          number = 80
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.aws_load_balancer_controller
+  ]
+}
