@@ -25,13 +25,13 @@ variable "kuberay_version" {
 variable "volcano_version" {
   description = "Version of the Volcano scheduler Helm chart."
   type        = string
-  default     = "1.8.2"
+  default     = "1.11.0"
 }
 
 variable "enable_volcano" {
   description = "Set to 'true' to enable the Volcano batch scheduler."
   type        = string
-  default     = "false"
+  default     = "true"
 }
 
 # --- KubeRay Cluster Configuration ---
