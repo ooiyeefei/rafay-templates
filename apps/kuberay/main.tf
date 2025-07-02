@@ -70,7 +70,6 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
     name      = "kuberay-dashboard-ingress"
     namespace = local.namespace
     annotations = {
-      "kubernetes.io.ingress.class"          = "alb"
       "alb.ingress.kubernetes.io/group.name" = "shared-apps-group"
       "alb.ingress.kubernetes.io/scheme"     = "internet-facing"
       "alb.ingress.kubernetes.io/target-type" = "ip"
@@ -80,6 +79,8 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
   }
 
   spec {
+    ingress_class_name = "alb"
+
     rule {
       http {
         path {
@@ -87,11 +88,8 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
           path_type = "Prefix"
           backend {
             service {
-              # We now point the Ingress to our new, routable service.
               name = kubernetes_service.ray_head_routable_svc.metadata[0].name
-              port {
-                number = 8265
-              }
+              port { number = 8265 }
             }
           }
         }
