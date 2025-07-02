@@ -18,13 +18,13 @@ variable "shared_alb_hostname" {
 variable "kuberay_version" {
   description = "Version of the KubeRay Helm charts to use."
   type        = string
-  default     = "1.1.2"
+  default     = "1.4.0"
 }
 
 variable "volcano_version" {
   description = "Version of the Volcano scheduler Helm chart."
   type        = string
-  default     = "1.11.0"
+  default     = "1.12.1"
 }
 
 variable "enable_volcano" {

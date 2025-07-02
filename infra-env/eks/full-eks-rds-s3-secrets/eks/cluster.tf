@@ -358,7 +358,7 @@ resource "local_sensitive_file" "kubeconfig_for_script" {
   filename = "/tmp/kubeconfig-${var.name}-ingress"
 }
 
-data "external" "shared_alb_info" {
+data "external" "shared_alb_info" {ř
   # This depends_on implicitly waits for the Ingress to be created before polling.
   depends_on = [
     kubernetes_ingress_v1.shared_alb_ingress,
@@ -372,4 +372,30 @@ data "external" "shared_alb_info" {
     namespace       = "kube-system"
     ingress_name    = "shared-alb-ingress"
   }
+}
+
+################################################################################
+# Install KubeRay Operator (Shared, Cluster-Wide Platform Component)
+################################################################################
+
+resource "helm_release" "kuberay_operator" {
+  name             = "kuberay-operator"
+  repository       = "https://ray-project.github.io/kuberay-helm/"
+  chart            = "kuberay-operator"
+  version          = "1.4.0"
+  namespace        = "kuberay-system"
+  create_namespace = true
+
+  depends_on = [module.eks]
+}
+
+resource "helm_release" "apply-volcano" {
+  name             = "volcano"
+  repository       = "https://volcano-sh.github.io/helm-charts/"
+  chart            = "volcano"
+  version          = "1.12.1"
+  namespace        = "volcano-system"
+  create_namespace = true
+
+  depends_on = [module.eks]
 }
