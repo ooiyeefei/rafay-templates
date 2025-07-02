@@ -34,22 +34,48 @@ resource "helm_release" "ray-cluster" {
   })]
 }
 
+# Create a Routable Service for the ALB ---
+# The default service created by the Helm chart is "headless" (ClusterIP: None),
+# which the AWS LBC cannot use as a backend. We create a new, standard ClusterIP
+# service that targets the same Ray head pod.
+
+resource "kubernetes_service" "ray_head_routable_svc" {
+  depends_on = [helm_release.ray-cluster]
+
+  metadata {
+    name      = "ray-cluster-head-routable-svc"
+    namespace = local.namespace
+  }
+  spec {
+    # This selector is copied from the headless service to ensure it targets the same pod.
+    selector = {
+      "ray.io/cluster"    = "ray-cluster-kuberay"
+      "ray.io/node-type"  = "head"
+    }
+    type = "ClusterIP"
+    port {
+      name        = "dashboard"
+      port        = 8265
+      target_port = 8265
+      protocol    = "TCP"
+    }
+  }
+}
+
 # --- Create an Ingress to Route Traffic via the Shared ALB ---
 resource "kubernetes_ingress_v1" "kuberay_ingress" {
-  depends_on = [
-    helm_release.ray-cluster
-  ]
+  depends_on = [kubernetes_service.ray_head_routable_svc]
 
   metadata {
     name      = "kuberay-dashboard-ingress"
     namespace = local.namespace
     annotations = {
-      "kubernetes.io.ingress.class" = "alb"
+      "kubernetes.io.ingress.class"          = "alb"
       "alb.ingress.kubernetes.io/group.name" = "shared-apps-group"
-      "alb.ingress.kubernetes.io/scheme" = "internet-facing"
+      "alb.ingress.kubernetes.io/scheme"     = "internet-facing"
       "alb.ingress.kubernetes.io/target-type" = "ip"
       "alb.ingress.kubernetes.io/rewrite-target" = "/"
-      "alb.ingress.kubernetes.io/group.order" = "10"
+      "alb.ingress.kubernetes.io/group.order"    = "10"
     }
   }
 
@@ -61,7 +87,8 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
           path_type = "Prefix"
           backend {
             service {
-              name = "ray-cluster-kuberay-head-svc"
+              # We now point the Ingress to our new, routable service.
+              name = kubernetes_service.ray_head_routable_svc.metadata[0].name
               port {
                 number = 8265
               }
