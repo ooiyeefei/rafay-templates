@@ -358,7 +358,7 @@ resource "local_sensitive_file" "kubeconfig_for_script" {
   filename = "/tmp/kubeconfig-${var.name}-ingress"
 }
 
-data "external" "shared_alb_info" {ř
+data "external" "shared_alb_info" {
   # This depends_on implicitly waits for the Ingress to be created before polling.
   depends_on = [
     kubernetes_ingress_v1.shared_alb_ingress,
