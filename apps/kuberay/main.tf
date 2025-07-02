@@ -79,18 +79,15 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
     name      = "kuberay-dashboard-ingress"
     namespace = local.namespace
     annotations = {
-      # This targets your existing shared ALB.
-      "kubernetes.io/ingress.class" = "alb"
-      # This annotation is crucial for most apps to work correctly behind a path.
-      # It strips the "/kuberay-xyz" prefix before sending to the pod.
+      "kubernetes.io/ingress.class"          = "alb"
+      "alb.ingress.kubernetes.io/group.name" = "shared-apps-group"
       "alb.ingress.kubernetes.io/rewrite-target" = "/"
+      "alb.ingress.kubernetes.io/group.order"    = "10"
     }
   }
 
   spec {
     rule {
-      host = var.shared_alb_hostname
-
       http {
         path {
           # Route traffic based on the unique, dynamic path.
