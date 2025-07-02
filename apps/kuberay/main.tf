@@ -81,6 +81,8 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
     annotations = {
       "kubernetes.io/ingress.class"          = "alb"
       "alb.ingress.kubernetes.io/group.name" = "shared-apps-group"
+      "alb.ingress.kubernetes.io/scheme" = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type" = "ip"
       "alb.ingress.kubernetes.io/rewrite-target" = "/"
       "alb.ingress.kubernetes.io/group.order"    = "10"
     }
