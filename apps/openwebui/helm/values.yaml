@@ -26,6 +26,8 @@ extraEnvVars:
         key: "url"
   - name: "VECTOR_DB"
     value: "pgvector"
+  - name: "SIGNUP_ENABLED"
+    value: "true"
   
 
 openaiBaseApiUrls: ["http://vllm-service/v1"]
