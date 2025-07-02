@@ -36,17 +36,20 @@ resource "helm_release" "ray-cluster" {
 
 # --- Create an Ingress to Route Traffic via the Shared ALB ---
 resource "kubernetes_ingress_v1" "kuberay_ingress" {
-  depends_on = [helm_release.ray-cluster]
+  depends_on = [
+    helm_release.ray-cluster
+  ]
 
   metadata {
     name      = "kuberay-dashboard-ingress"
     namespace = local.namespace
     annotations = {
-      "kubernetes.io/ingress.class"          = "alb"
+      "kubernetes.io.ingress.class" = "alb"
       "alb.ingress.kubernetes.io/group.name" = "shared-apps-group"
-      "alb.ingress.kubernetes.io/scheme"     = "internet-facing"
+      "alb.ingress.kubernetes.io/scheme" = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type" = "ip"
       "alb.ingress.kubernetes.io/rewrite-target" = "/"
-      "alb.ingress.kubernetes.io/group.order"    = "10"
+      "alb.ingress.kubernetes.io/group.order" = "10"
     }
   }
 
@@ -58,8 +61,10 @@ resource "kubernetes_ingress_v1" "kuberay_ingress" {
           path_type = "Prefix"
           backend {
             service {
-              name = "ray-cluster-head-svc"
-              port { number = 8265 }
+              name = "ray-cluster-kuberay-head-svc"
+              port {
+                number = 8265
+              }
             }
           }
         }
