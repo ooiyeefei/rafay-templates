@@ -315,6 +315,7 @@ resource "helm_release" "kuberay_operator" {
   version          = "1.4.0"
   namespace        = "kuberay-system"
   create_namespace = true
+  force_update     = true
 
   depends_on = [
     helm_release.aws_load_balancer_controller,
@@ -329,6 +330,7 @@ resource "helm_release" "apply-volcano" {
   version          = "1.12.1"
   namespace        = "volcano-system"
   create_namespace = true
+  force_update     = true
 
   depends_on = [helm_release.aws_load_balancer_controller]
 }
