@@ -33,6 +33,30 @@ extraEnvVars:
 
 openaiBaseApiUrls: ["http://vllm-service/v1"]
 
-# Disable the embedded Ollama chart
+%{ if external_vllm_endpoint != "" ~}
+# --- Use External vLLM Endpoint ---
+# Point OpenWebUI to the external, OpenAI-compatible API.
+openaiBaseApiUrls: ["${external_vllm_endpoint}"]
+
+# Disable the embedded Ollama chart as it is not needed.
 ollama:
   enabled: false
+
+%{ else ~}
+# --- Use Embedded Ollama Workload ---
+# This value is a placeholder for the internal Kubernetes service.
+# OpenWebUI will connect to the Ollama container running in the same pod.
+openaiBaseApiUrls: ["http://localhost:11434"]
+
+# Conditionally enable and configure the embedded Ollama chart.
+ollama:
+  enabled: ${enable_ollama_workload}
+  %{ if ollama_on_gpu ~}
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+  nodeSelector:
+    "nvidia.com/gpu": "true"
+  %{ endif ~}
+%{ endif ~}

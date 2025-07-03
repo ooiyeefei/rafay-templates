@@ -76,3 +76,21 @@ variable "certificateauthoritydata" {
   type        = string
   sensitive   = true
 }
+
+variable "enable_ollama_workload" {
+  description = "Set to true to deploy the Ollama workload."
+  type        = string
+  default     = false
+}
+
+variable "ollama_on_gpu" {
+  description = "Set to true to schedule the Ollama workload on GPU nodes."
+  type        = string
+  default     = false
+}
+
+variable "external_vllm_endpoint" {
+  description = "The base URL of an external OpenAI-compatible API endpoint (e.g., vLLM). If set, the embedded Ollama will be disabled."
+  type        = string
+  default     = ""
+}

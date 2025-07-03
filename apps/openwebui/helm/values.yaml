@@ -34,6 +34,5 @@ extraEnvVars:
 
 openaiBaseApiUrls: ["http://vllm-service/v1"]
 
-# Disable the embedded Ollama chart
 ollama:
-  enabled: false
+  enabled: ${enable_ollama_workload}
