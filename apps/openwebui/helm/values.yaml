@@ -28,6 +28,8 @@ extraEnvVars:
     value: "pgvector"
   - name: "SIGNUP_ENABLED"
     value: "true"
+  - name: WEBUI_AUTH
+    value: "False"
   
 
 openaiBaseApiUrls: ["http://vllm-service/v1"]
