@@ -1,9 +1,9 @@
-output "kuberay_dashboard_url" {
-  description = "The public URL to access the KubeRay dashboard."
-  value       = "http://${var.shared_alb_hostname}${local.path}"
+output "load_balancer_hostname" {
+  description = "The publicly accessible hostname of the KubeRay dashboard Load Balancer."
+  value       = data.external.load_balancer_info.result.hostname
 }
 
-output "namespace" {
-  description = "The unique namespace where this KubeRay instance was deployed."
-  value       = local.namespace
+output "kuberay_dashboard_url" {
+  description = "The full URL to access the KubeRay dashboard."
+  value       = "http://${data.external.load_balancer_info.result.hostname}"
 }

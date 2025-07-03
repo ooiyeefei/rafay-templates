@@ -9,8 +9,8 @@ variable "project_name" {
   type        = string
 }
 
-variable "shared_alb_hostname" {
-  description = "The public DNS name of the shared Application Load Balancer that this application will attach to."
+variable "aws_region" {
+  description = "The AWS region where the cluster is located."
   type        = string
 }
 
@@ -19,18 +19,6 @@ variable "kuberay_version" {
   description = "Version of the KubeRay Helm charts to use."
   type        = string
   default     = "1.4.0"
-}
-
-variable "volcano_version" {
-  description = "Version of the Volcano scheduler Helm chart."
-  type        = string
-  default     = "1.12.1"
-}
-
-variable "enable_volcano" {
-  description = "Set to 'true' to enable the Volcano batch scheduler."
-  type        = string
-  default     = "true"
 }
 
 # --- KubeRay Cluster Configuration ---

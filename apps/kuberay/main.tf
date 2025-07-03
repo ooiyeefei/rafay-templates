@@ -8,7 +8,6 @@ resource "random_string" "instance_suffix" {
 locals {
   # Unique namespace for THIS KubeRay application instance.
   namespace = "kuberay-${random_string.instance_suffix.result}"
-  path      = "/kuberay-${random_string.instance_suffix.result}"
 }
 
 resource "kubernetes_namespace" "app_namespace" {
@@ -34,66 +33,89 @@ resource "helm_release" "ray-cluster" {
   })]
 }
 
-# Create a Routable Service for the ALB ---
-# The default service created by the Helm chart is "headless" (ClusterIP: None),
-# which the AWS LBC cannot use as a backend. We create a new, standard ClusterIP
-# service that targets the same Ray head pod.
+# --- Template File Rendering for Load Balancer ---
+resource "local_file" "load_balancer_yaml" {
+  content = templatefile("${path.module}/lb.yaml.tpl", {
+    namespace = local.namespace
+  })
+  filename = "${path.module}/kuberay-lb-${local.namespace}.yaml"
+}
 
-resource "kubernetes_service" "ray_head_routable_svc" {
-  depends_on = [helm_release.ray-cluster]
+# --- Deploy the Load Balancer Service using Rafay Workload ---
+resource "rafay_workload" "kuberay_load_balancer" {
+  depends_on = [
+    helm_release.ray-cluster,
+    local_file.load_balancer_yaml
+  ]
 
   metadata {
-    name      = "ray-cluster-head-routable-svc"
-    namespace = local.namespace
+    name    = "kuberay-lb-${local.namespace}"
+    project = var.project_name
   }
   spec {
-    # This selector is copied from the headless service to ensure it targets the same pod.
-    selector = {
-      "ray.io/cluster"    = "ray-cluster-kuberay"
-      "ray.io/node-type"  = "head"
+    namespace = local.namespace
+    placement {
+      selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    type = "ClusterIP"
-    port {
-      name        = "dashboard"
-      port        = 8265
-      target_port = 8265
-      protocol    = "TCP"
+    version = "v-${random_string.instance_suffix.result}"
+    artifact {
+      type = "Yaml"
+      artifact {
+        paths {
+          name = "file://${local_file.load_balancer_yaml.filename}"
+        }
+      }
     }
   }
 }
 
-# --- Create an Ingress to Route Traffic via the Shared ALB ---
-resource "kubernetes_ingress_v1" "kuberay_ingress" {
-  depends_on = [kubernetes_service.ray_head_routable_svc]
-
-  metadata {
-    name      = "kuberay-dashboard-ingress"
-    namespace = local.namespace
-    annotations = {
-      "alb.ingress.kubernetes.io/group.name" = "shared-apps-group"
-      "alb.ingress.kubernetes.io/scheme"     = "internet-facing"
-      "alb.ingress.kubernetes.io/target-type" = "ip"
-      "alb.ingress.kubernetes.io/rewrite-target" = "/"
-      "alb.ingress.kubernetes.io/group.order"    = "10"
-    }
-  }
-
-  spec {
-    ingress_class_name = "alb"
-
-    rule {
-      http {
-        path {
-          path      = local.path
-          path_type = "Prefix"
-          backend {
-            service {
-              name = kubernetes_service.ray_head_routable_svc.metadata[0].name
-              port { number = 8265 }
-            }
-          }
-        }
+# --- Kubeconfig and Hostname Retrieval (mirrored from openwebui) ---
+resource "local_sensitive_file" "kubeconfig" {
+  content = yamlencode({
+    apiVersion      = "v1"
+    kind            = "Config"
+    current-context = "default"
+    clusters = [{
+      name = var.cluster_name
+      cluster = {
+        server                    = var.host
+        certificate-authority-data = var.certificateauthoritydata
       }
-    }
+    }]
+    contexts = [{
+      name = "default"
+      context = {
+        cluster = var.cluster_name
+        user    = "default"
+      }
+    }]
+    users = [{
+      name = "default"
+      user = {
+        client-certificate-data = var.clientcertificatedata
+        client-key-data         = var.clientkeydata
+      }
+    }]
+  })
+  filename = "/tmp/kubeconfig-${local.namespace}"
+}
+
+resource "time_sleep" "wait_for_lb_provisioning" {
+  depends_on      = [rafay_workload.kuberay_load_balancer]
+  create_duration = "90s"
+}
+
+data "external" "load_balancer_info" {
+  depends_on = [
+    time_sleep.wait_for_lb_provisioning,
+    local_sensitive_file.kubeconfig
+  ]
+
+  program = ["bash", "${path.module}/get-lb-hostname.sh"]
+
+  query = {
+    kubeconfig_path = local_sensitive_file.kubeconfig.filename
+    namespace       = local.namespace
+    service_name    = "kuberay-dashboard-service"
   }
 }
