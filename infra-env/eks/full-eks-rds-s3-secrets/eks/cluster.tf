@@ -96,12 +96,6 @@ locals {
     for key, base_config in var.node_group_configurations :
     key => merge(
       base_config,
-
-      # GPU Override:
-      # This expression now does two things:
-      # a) It uses a null map in the 'false' case to satisfy Terraform's type checker.
-      # b) It then filters out any keys with 'null' values, resulting in an empty map ({})
-      #    if the condition is false. This prevents accidental overwrites on other node groups.
       {
         for k, v in (key == "gpu" && var.enable_gpu_nodes ? local.gpu_user_settings : { enabled = null, desired_size = null, min_size = null }) : k => v if v != null
       },
@@ -122,6 +116,7 @@ locals {
       max_size                     = config.max_size
       desired_size                 = config.desired_size
       instance_types               = config.instance_types
+      ami_type                     = key == "gpu" ? "AL2_x86_64_GPU" : "AL2_x86_64"
       capacity_type                = config.capacity_type
       disk_size                    = config.disk_size
       disk_type                    = config.disk_type

@@ -89,7 +89,7 @@ variable "node_group_configurations" {
       min_size       = 0
       max_size       = 3
       desired_size   = 0
-      instance_types = ["g5.xlarge", "g5.2xlarge"]
+      instance_types = ["g4dn.xlarge", "g4dn.2xlarge"]
       capacity_type  = "ON_DEMAND"
       disk_size      = 50
       disk_type      = "gp3"
