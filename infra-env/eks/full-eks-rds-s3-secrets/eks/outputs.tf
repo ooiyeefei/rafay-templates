@@ -69,8 +69,3 @@ output "node_security_group_id" {
   description = "The ID of the security group attached to the EKS worker nodes."
   value       = module.eks.node_security_group_id
 }
-
-output "shared_ingress_hostname" {
-  description = "The public DNS hostname of the shared Application Load Balancer."
-  value       = data.external.shared_alb_info.result.hostname
-}
