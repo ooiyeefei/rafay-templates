@@ -316,7 +316,10 @@ resource "helm_release" "kuberay_operator" {
   namespace        = "kuberay-system"
   create_namespace = true
 
-  depends_on = [module.eks]
+  depends_on = [
+    helm_release.aws_load_balancer_controller,
+    helm_release.apply-volcano
+  ]
 }
 
 resource "helm_release" "apply-volcano" {
@@ -327,5 +330,5 @@ resource "helm_release" "apply-volcano" {
   namespace        = "volcano-system"
   create_namespace = true
 
-  depends_on = [module.eks]
+  depends_on = [helm_release.aws_load_balancer_controller]
 }
