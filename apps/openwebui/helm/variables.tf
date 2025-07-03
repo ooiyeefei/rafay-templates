@@ -79,13 +79,13 @@ variable "certificateauthoritydata" {
 
 variable "enable_ollama_workload" {
   description = "Set to true to deploy the Ollama workload."
-  type        = string
+  type        = bool
   default     = false
 }
 
 variable "ollama_on_gpu" {
   description = "Set to true to schedule the Ollama workload on GPU nodes."
-  type        = string
+  type        = bool
   default     = false
 }
 
