@@ -327,14 +327,14 @@ resource "kubernetes_ingress_v1" "shared_alb_ingress" {
   spec {
     default_backend {
       service {
-        name = "aws-load-balancer-webhook-service"
+        name = "default-http-backend"
         port {
-          # This service listens on port 9443 for its webhook.
-          number = 9443
+          number = 80
         }
       }
     }
   }
+
   depends_on = [
     helm_release.aws_load_balancer_controller
   ]
