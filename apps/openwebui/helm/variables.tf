@@ -94,3 +94,15 @@ variable "external_vllm_endpoint" {
   type        = string
   default     = ""
 }
+
+variable "default_ollama_models" {
+  description = "A default list of models to provision in Ollama."
+  type        = list(string)
+  default     = ["llama3:8b", "codellama:7b"]
+}
+
+variable "additional_ollama_models" {
+  description = "An optional list of additional models to add to the default list."
+  type        = list(string)
+  default     = [] # Default to an empty list, making it optional
+}

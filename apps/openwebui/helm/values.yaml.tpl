@@ -59,6 +59,16 @@ ollama:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+
+  # Loop through the final model list to generate the entries.
+  models:
+    %{ for model in ollama_models ~}
+    - name: "${model}"
+    %{ endfor ~}
+
     %{ else ~}
   # CASE 3: No external endpoint and no GPU.
   # Just enable the workload with no special scheduling.

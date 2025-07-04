@@ -1,5 +1,10 @@
 # --- Template File Rendering ---
 
+locals {
+  # Merge the default and additional lists, and remove any duplicates.
+  final_model_list = distinct(concat(var.default_ollama_models, var.additional_ollama_models))
+}
+
 resource "local_file" "openwebui_values_yaml" {
   content  = templatefile("${path.module}/values.yaml.tpl", {
     s3_bucket_name = var.s3_bucket_name
@@ -8,6 +13,7 @@ resource "local_file" "openwebui_values_yaml" {
     ollama_on_gpu          = var.ollama_on_gpu
     enable_ollama_workload = var.enable_ollama_workload
     external_vllm_endpoint = var.external_vllm_endpoint
+    ollama_models          = local.final_model_list 
   })
   filename = "values.yaml"
 }
