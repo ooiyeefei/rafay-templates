@@ -52,6 +52,11 @@ ollama:
   # CASE 2: No external endpoint, AND GPU is requested.
   # Enable the workload and add the specific GPU scheduling rules.
   enabled: ${enable_ollama_workload}
+
+  image:
+    repository: ollama/ollama
+    tag: "${ollama_image_tag}"
+
   nodeSelector:
     accelerator: "nvidia"
   tolerations:

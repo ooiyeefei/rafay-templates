@@ -14,6 +14,7 @@ resource "local_file" "openwebui_values_yaml" {
     enable_ollama_workload = var.enable_ollama_workload
     external_vllm_endpoint = var.external_vllm_endpoint
     ollama_models          = local.final_model_list 
+    ollama_image_version   = var.ollama_image_version
   })
   filename = "values.yaml"
 }

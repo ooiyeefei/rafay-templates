@@ -106,3 +106,9 @@ variable "additional_ollama_models" {
   type        = list(string)
   default     = [] # Default to an empty list, making it optional
 }
+
+variable "ollama_image_version" {
+  description = "The container tag (version) for the Ollama image. Use a specific version like '0.1.41' to avoid GLIBC compatibility issues with NVIDIA drivers."
+  type        = string
+  default     = "0.1.41"
+}
