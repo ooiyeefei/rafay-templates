@@ -46,8 +46,9 @@ ollama:
   # CASE 1: An external endpoint is provided.
   # The embedded Ollama is simply disabled.
   enabled: false
-
-  %{ else if ollama_on_gpu ~}
+  %{ else ~}
+    # No external endpoint, so check if GPU is requested.
+    %{ if ollama_on_gpu ~}
   # CASE 2: No external endpoint, AND GPU is requested.
   # Enable the workload and add the specific GPU scheduling rules.
   enabled: ${enable_ollama_workload}
@@ -58,9 +59,9 @@ ollama:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
-
-  %{ else ~}
+    %{ else ~}
   # CASE 3: No external endpoint and no GPU.
   # Just enable the workload with no special scheduling.
   enabled: ${enable_ollama_workload}
+    %{ endif ~}
   %{ endif ~}
