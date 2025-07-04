@@ -55,7 +55,7 @@ ollama:
 
   image:
     repository: ollama/ollama
-    tag: "${ollama_image_tag}"
+    tag: "${ollama_image_version}"
 
   nodeSelector:
     accelerator: "nvidia"
