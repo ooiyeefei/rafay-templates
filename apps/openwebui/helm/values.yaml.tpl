@@ -35,23 +35,22 @@ openaiBaseApiUrls: ["http://vllm-service/v1"]
 
 %{ if external_vllm_endpoint != "" ~}
 # --- Use External vLLM Endpoint ---
-# Point OpenWebUI to the external, OpenAI-compatible API.
 openaiBaseApiUrls: ["${external_vllm_endpoint}"]
-
-# Disable the embedded Ollama chart as it is not needed.
-ollama:
-  enabled: false
-
 %{ else ~}
 # --- Use Embedded Ollama Workload ---
-# This value is a placeholder for the internal Kubernetes service.
-# OpenWebUI will connect to the Ollama container running in the same pod.
 openaiBaseApiUrls: ["http://localhost:11434"]
+%{ endif ~}
 
-# Conditionally enable and configure the embedded Ollama chart.
 ollama:
+  %{ if external_vllm_endpoint != "" ~}
+  # If an external endpoint is used, the embedded Ollama chart must be disabled.
+  enabled: false
+  %{ else ~}
+  # If using the embedded workload, configure it based on the variables.
   enabled: ${enable_ollama_workload}
   %{ if ollama_on_gpu ~}
+  # These keys are now correctly indented because they are inside the "if"
+  # statement, which itself is correctly indented under the "ollama:" block.
   tolerations:
     - key: "nvidia.com/gpu"
       operator: "Exists"
@@ -59,4 +58,4 @@ ollama:
   nodeSelector:
     "nvidia.com/gpu": "true"
   %{ endif ~}
-%{ endif ~}
+  %{ endif ~}
