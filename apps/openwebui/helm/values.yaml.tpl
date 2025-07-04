@@ -43,19 +43,17 @@ openaiBaseApiUrls: ["http://localhost:11434"]
 
 ollama:
   %{ if external_vllm_endpoint != "" ~}
-  # If an external endpoint is used, the embedded Ollama chart must be disabled.
   enabled: false
   %{ else ~}
-  # If using the embedded workload, configure it based on the variables.
   enabled: ${enable_ollama_workload}
   %{ if ollama_on_gpu ~}
-  # These keys are now correctly indented because they are inside the "if"
-  # statement, which itself is correctly indented under the "ollama:" block.
-  tolerations:
-    - key: "nvidia.com/gpu"
-      operator: "Exists"
-      effect: "NoSchedule"
+  # This now perfectly matches the labels and taints of your GPU node.
   nodeSelector:
-    "nvidia.com/gpu": "true"
+    accelerator: "nvidia"  # <-- CORRECTED: Matches the label on your GPU node.
+  tolerations:
+    - key: "nvidia.com/gpu"  # <-- CORRECTED: Matches the taint on your GPU node.
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
   %{ endif ~}
   %{ endif ~}
