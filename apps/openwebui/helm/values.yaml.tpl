@@ -42,11 +42,15 @@ openaiBaseApiUrls: ["http://localhost:11434"]
 %{ endif ~}
 
 ollama:
-  # Set the 'enabled' key based on the logic in a single line.
-  enabled: %{ if external_vllm_endpoint != "" }false%{ else }${enable_ollama_workload}%{ endif }
+  %{ if external_vllm_endpoint != "" ~}
+  # CASE 1: An external endpoint is provided.
+  # The embedded Ollama is simply disabled.
+  enabled: false
 
-  # Add GPU scheduling rules only if NOT using an external endpoint AND ollama_on_gpu is true.
-  %{ if external_vllm_endpoint == "" && ollama_on_gpu ~}
+  %{ else if ollama_on_gpu ~}
+  # CASE 2: No external endpoint, AND GPU is requested.
+  # Enable the workload and add the specific GPU scheduling rules.
+  enabled: ${enable_ollama_workload}
   nodeSelector:
     accelerator: "nvidia"
   tolerations:
@@ -54,4 +58,9 @@ ollama:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
+
+  %{ else ~}
+  # CASE 3: No external endpoint and no GPU.
+  # Just enable the workload with no special scheduling.
+  enabled: ${enable_ollama_workload}
   %{ endif ~}
