@@ -27,7 +27,7 @@ resource "local_file" "load_balancer_yaml" {
 }
 
 resource "kubernetes_secret" "ghcr_creds" {
-  count = var.enable_openwebui_workload ? 1 : 0
+  count = var.enable_ollama_workload ? 1 : 0
 
   metadata {
     name      = "ghcr-io-creds"

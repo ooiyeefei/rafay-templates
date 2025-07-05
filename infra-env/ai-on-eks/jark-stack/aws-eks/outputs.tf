@@ -4,8 +4,14 @@ output "cluster_name" {
 }
 
 output "cluster_endpoint" {
-  description = "The endpoint for the EKS cluster's API server."
+  description = "The endpoint for your EKS cluster's API server."
   value       = module.eks.cluster_endpoint
+}
+
+output "cluster_certificate_authority_data" {
+  description = "Base64 encoded certificate data required to communicate with the cluster."
+  value       = module.eks.cluster_certificate_authority_data
+  sensitive   = true
 }
 
 output "cluster_oidc_issuer_url" {
@@ -23,7 +29,22 @@ output "cluster_security_group_id" {
   value       = module.eks.cluster_security_group_id
 }
 
-output "configure_kubectl" {
-  description = "A command to configure kubectl to connect to the new EKS cluster."
-  value       = module.eks.configure_kubectl
+output "cluster_exec_config" {
+  description = "Configuration block for exec-based authentication. Used for generating a kubeconfig that uses the AWS IAM Authenticator."
+  value = {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks",
+      "get-token",
+      "--cluster-name",
+      module.eks.cluster_name
+    ]
+  }
+  sensitive = true
+}
+
+output "configure_kubectl_command" {
+  description = "Run this command to configure kubectl to connect to the new EKS cluster. Make sure you are logged in with the correct AWS profile."
+  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
