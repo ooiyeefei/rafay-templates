@@ -50,10 +50,9 @@ output "configure_kubectl_command" {
 }
 
 output "eks_managed_node_group_instance_profile_name" {
-  description = "The name of the IAM Instance Profile used by the EKS managed node groups. This should be passed to Karpenter."
-  # The module creates a role and instance profile for the node groups defined in `eks_managed_node_groups`.
-  # We are going to reference the instance profile created for the 'core_node_group' to next module eks add on stack.
-  value = module.eks.eks_managed_node_groups["core_node_group"].iam_instance_profile_name
+  description = "The name of the IAM instance profile for the core node group."
+  # The instance profile name is the same as the role name for managed node groups.
+  value       = module.eks.eks_managed_node_groups["core_node_group"].iam_role_name
 }
 
 output "efs_csi_driver_irsa_role_arn" {

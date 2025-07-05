@@ -163,7 +163,7 @@ module "ebs_csi_driver_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.39"
 
-  role_name_prefix      = format("%s-%s-", var.cluster_name, "ebs-csi-driver")
+  role_name_prefix = format("%s-%s-", var.cluster_name, "ebs-csi")
   attach_ebs_csi_policy = true
 
   oidc_providers = {
@@ -182,7 +182,7 @@ module "efs_csi_driver_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.39" # Use the same version as your other module
 
-  role_name_prefix      = format("%s-%s-", var.cluster_name, "efs-csi-driver")
+  role_name_prefix = format("%s-%s-", var.cluster_name, "efs-csi")
   attach_efs_csi_policy = true # This is the key flag for EFS
 
   oidc_providers = {
