@@ -74,18 +74,20 @@ resource "helm_release" "karpenter" {
   chart            = "karpenter"
   version          = var.karpenter_chart_version
 
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.karpenter_controller.arn
-  }
-  set {
-    name  = "settings.aws.clusterName"
-    value = var.cluster_name
-  }
-  set {
-    name  = "settings.aws.defaultInstanceProfile"
-    value = var.karpenter_instance_profile_name
-  }
+  set = [
+    {
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = aws_iam_role.karpenter_controller.arn
+    },
+    {
+      name  = "settings.aws.clusterName"
+      value = var.cluster_name
+    },
+    {
+      name  = "settings.aws.defaultInstanceProfile"
+      value = var.karpenter_instance_profile_name
+    }
+  ]
 }
 
 #---------------------------------------------------------------
@@ -110,10 +112,12 @@ resource "helm_release" "kuberay_operator" {
   chart            = "kuberay-operator"
   version          = var.kuberay_chart_version
 
-  set {
-    name  = "batchScheduler.enabled"
-    value = "true"
-  }
+  set = [
+    {
+      name  = "batchScheduler.enabled"
+      value = "true"
+    }
+  ]
 }
 
 #---------------------------------------------------------------
@@ -254,19 +258,20 @@ resource "helm_release" "aws_efs_csi_driver" {
   namespace  = "kube-system"
   version    = "2.8.1" # Pin to a specific, tested version
 
-  set {
-    name  = "controller.serviceAccount.create"
-    value = "false" # We don't need the chart to create the SA
-  }
-  set {
-    name  = "controller.serviceAccount.name"
-    value = "efs-csi-controller-sa"
-  }
-  set {
-    # This is where you annotate the Service Account with the role from the EKS module
-    name  = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = var.efs_csi_driver_role_arn
-  }
+  set = [
+    {
+      name  = "controller.serviceAccount.create"
+      value = "false"
+    },
+    {
+      name  = "controller.serviceAccount.name"
+      value = "efs-csi-controller-sa"
+    },
+    {
+      name  = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = var.efs_csi_driver_role_arn
+    }
+  ]
 }
 
 # ==============================================================================
@@ -296,18 +301,20 @@ resource "helm_release" "aws_load_balancer_controller" {
   # This ensures the SA exists before the chart tries to use it.
   depends_on = [kubernetes_service_account.aws_load_balancer_controller]
 
-  set {
-    name  = "serviceAccount.create"
-    value = "false" # We manage the SA ourselves.
-  }
-  set {
-    name  = "serviceAccount.name"
-    value = "aws-load-balancer-controller" # Tell the chart which SA to use.
-  }
-  set {
-    name  = "clusterName"
-    value = var.cluster_name
-  }
+  set = [
+    {
+      name  = "serviceAccount.create"
+      value = "false"
+    },
+    {
+      name  = "serviceAccount.name"
+      value = "aws-load-balancer-controller"
+    },
+    {
+      name  = "clusterName"
+      value = var.cluster_name
+    }
+  ]
 }
 
 # ==============================================================================
