@@ -54,24 +54,27 @@ ollama:
   # The embedded Ollama is simply disabled.
   enabled: false
   %{ else ~}
-    # No external endpoint, so check if GPU is requested.
-    %{ if ollama_on_gpu ~}
-  # CASE 2: No external endpoint, AND GPU is requested.
-  # Enable the workload and add the specific GPU scheduling rules.
+  # --- BASE SETTINGS FOR EMBEDDED OLLAMA ---
+  # These settings apply whether you are on GPU or not.
   enabled: ${enable_ollama_workload}
-
   image:
     repository: ollama/ollama
     tag: "${ollama_image_version}"
 
-  # Configure a Persistent Volume for the model data.
+  # Persistence is now correctly applied in all embedded cases.
   persistence:
     enabled: true
-    # For EKS on AWS, 'gp3' is the modern, recommended storage class.
-    storageClass: "gp3" 
-    # Allocate a reasonable amount of space. Models can be large.
+    storageClass: "gp3"
     size: 50Gi
 
+  models:
+    %{ for model in ollama_models ~}
+    - name: "${model}"
+    %{ endfor ~}
+
+  # --- GPU-SPECIFIC ADDITIONS ---
+  # This block now ONLY adds the settings needed for GPU scheduling.
+  %{ if ollama_on_gpu ~}
   nodeSelector:
     accelerator: "nvidia"
   tolerations:
@@ -82,16 +85,5 @@ ollama:
   resources:
     limits:
       nvidia.com/gpu: 1
-
-  # Loop through the final model list to generate the entries.
-  models:
-    %{ for model in ollama_models ~}
-    - name: "${model}"
-    %{ endfor ~}
-
-    %{ else ~}
-  # CASE 3: No external endpoint and no GPU.
-  # Just enable the workload with no special scheduling.
-  enabled: ${enable_ollama_workload}
-    %{ endif ~}
+  %{ endif ~}
   %{ endif ~}
