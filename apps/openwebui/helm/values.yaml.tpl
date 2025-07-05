@@ -31,6 +31,12 @@ extraEnvVars:
   - name: WEBUI_AUTH
     value: "False"
 
+tolerations:
+- key: "spot"
+  operator: "Equal"
+  value: "true"
+  effect: "NoSchedule"
+
 pipelines:
   enabled: false
 

@@ -3,11 +3,6 @@
 #---------------------------------------
 data "aws_caller_identity" "current" {}
 
-data "aws_iam_session_context" "current" {
-  # The EKS module uses this to automatically add the Terraform execution role
-  # as a cluster administrator, which is critical for subsequent applies.
-}
-
 #---------------------------------------
 # Local Variables for Add-on Logic
 #---------------------------------------
@@ -69,7 +64,7 @@ module "eks" {
   kms_key_administrators = distinct(concat(
     ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"],
     var.kms_key_admin_roles,
-    [data.aws_iam_session_context.current.issuer_arn]
+    [data.aws_caller_identity.current.arn]
   ))
 
   # Security Group Rules
