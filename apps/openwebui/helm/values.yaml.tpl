@@ -54,13 +54,8 @@ ollama:
   enabled: ${enable_ollama_workload}
 
   image:
-    # Use the known-good image from GHCR to fix the GLIBC issue
-    repository: "ghcr.io/open-webui/ollama"
+    repository: ghcr.io/open-webui/ollama
     tag: "${ollama_image_version}"
-  
-  # Tell the Ollama pod to use the secret you created in Terraform
-  imagePullSecrets:
-    - name: "ghcr-io-creds"
 
   nodeSelector:
     accelerator: "nvidia"

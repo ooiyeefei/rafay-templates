@@ -26,40 +26,11 @@ resource "local_file" "load_balancer_yaml" {
   filename = "lb.yaml"
 }
 
-resource "kubernetes_secret" "ghcr_creds" {
-  count = var.enable_ollama_workload ? 1 : 0
-
-  metadata {
-    name      = "ghcr-io-creds"
-    namespace = var.namespace
-  }
-
-  # This is the secret data that the kubelet needs.
-  # Use your GitHub username or organization name and the PAT you just created.
-  # It is HIGHLY recommended to source these from a secure vault or environment variables
-  # rather than hardcoding them.
-  data = {
-    ".dockerconfigjson" = jsonencode({
-      auths = {
-        "ghcr.io" = {
-          # Your GitHub username and the Personal Access Token (PAT)
-          auth = base64encode("${var.github_user}:${var.github_pat}")
-        }
-      }
-    })
-  }
-
-  type = "kubernetes.io/dockerconfigjson"
-}
-
 # --- Rafay Workload Deployment ---
 
 resource "rafay_workload" "openwebui_helm" {
-  count = var.enable_ollama_workload ? 1 : 0
-
   depends_on = [
-    local_file.openwebui_values_yaml,
-    kubernetes_secret.ghcr_creds
+    local_file.openwebui_values_yaml
   ]
 
   metadata {
