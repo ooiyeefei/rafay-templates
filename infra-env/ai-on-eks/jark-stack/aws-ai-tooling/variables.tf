@@ -4,6 +4,11 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "aws_region" {
+  description = "The AWS region to deploy the VPC into."
+  type        = string
+}
+
 variable "oidc_provider_arn" {
   description = "The ARN of the OIDC provider for the EKS cluster."
   type        = string
