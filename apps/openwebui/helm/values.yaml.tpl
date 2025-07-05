@@ -54,7 +54,7 @@ ollama:
   enabled: ${enable_ollama_workload}
 
   image:
-    repository: ghcr.io/open-webui/ollama
+    repository: ollama/ollama
     tag: "${ollama_image_version}"
 
   nodeSelector:
