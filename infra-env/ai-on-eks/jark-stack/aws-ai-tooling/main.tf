@@ -63,7 +63,7 @@ resource "helm_release" "karpenter" {
   repository_password = data.aws_ecrpublic_authorization_token.token.password
 
   wait = true
-  
+
   set = [
     {
       name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
@@ -110,102 +110,24 @@ resource "helm_release" "kuberay_operator" {
   ]
 }
 
-#---------------------------------------------------------------
-# Karpenter Custom Resources: NodePool and EC2NodeClass
-#---------------------------------------------------------------
-# These resources tell Karpenter *how* to provision nodes. This
-# is the declarative configuration for your node autoscaling.
-
-resource "kubernetes_manifest" "karpenter_nodepool" {
+resource "helm_release" "karpenter_resources" {
   depends_on = [helm_release.karpenter]
-  manifest = {
-    "apiVersion" = "karpenter.sh/v1beta1"
-    "kind"       = "NodePool"
-    "metadata" = {
-      "name" = "default"
-    }
-    "spec" = {
-      "disruption" = {
-        "consolidationPolicy" = "WhenUnderutilized"
-        "expireAfter"         = "720h" # 30 days
-      }
-      "template" = {
-        "metadata" = {
-          "labels" = {
-            "type" = "karpenter"
-          }
-        }
-        "spec" = {
-          "nodeClassRef" = {
-            "name" = "default"
-          }
-          "requirements" = [
-            { "key" = "karpenter.sh/capacity-type", "operator" = "In", "values" = ["on-demand"] },
-            { "key" = "karpenter.k8s.aws/instance-category", "operator" = "In", "values" = var.karpenter_instance_category },
-            { "key" = "karpenter.k8s.aws/instance-generation", "operator" = "In", "values" = var.karpenter_instance_generation },
-          ]
-        }
-      }
-    }
-  }
-}
 
-resource "kubernetes_manifest" "karpenter_nodeclass" {
-  depends_on = [helm_release.karpenter]
-  manifest = {
-    "apiVersion" = "karpenter.k8s.aws/v1beta1"
-    "kind"       = "EC2NodeClass"
-    "metadata" = {
-      "name" = "default"
-    }
-    "spec" = {
-      "amiFamily" = "AL2"
-      "role"      = var.karpenter_instance_profile_name
-      "subnetSelectorTerms" = [{
-        "tags" = { "karpenter.sh/discovery" = var.cluster_name }
-      }]
-      "securityGroupSelectorTerms" = [{
-        "tags" = { "karpenter.sh/discovery" = var.cluster_name }
-      }]
-    }
-  }
-}
+  name          = "karpenter-resources"
+  # This points to the local directory you just created
+  chart         = "./karpenter-resources"
+  namespace     = "karpenter"
 
-# This additional NodePool is specifically for GPU workloads.
-resource "kubernetes_manifest" "karpenter_nodepool_gpu" {
-  depends_on = [helm_release.karpenter]
-  manifest = {
-    "apiVersion" = "karpenter.sh/v1beta1"
-    "kind"       = "NodePool"
-    "metadata" = {
-      "name" = "gpu"
-    }
-    "spec" = {
-      "disruption" = {
-        "consolidationPolicy" = "WhenUnderutilized"
-        "expireAfter"         = "720h"
-      }
-      "template" = {
-        "metadata" = {
-          "labels" = {
-            "type"                 = "karpenter",
-            "node.kubernetes.io/instance-type" = "nvidia-gpu" # A label for easy selection
-          }
-        }
-        "spec" = {
-          "nodeClassRef" = {
-            "name" = "default" # Can reuse the same node class
-          }
-          "requirements" = [
-            { "key" = "karpenter.sh/capacity-type", "operator" = "In", "values" = ["on-demand"] },
-            { "key" = "karpenter.k8s.aws/instance-family", "operator" = "In", "values" = var.karpenter_gpus_instance_family },
-            { "key" = "node.kubernetes.io/instance-type", "operator" = "In", "values" = var.karpenter_gpus_instance_types },
-            { "key" = "karpenter.sh/provisioner-name", "operator" = "Exists" }, # Standard requirement
-          ]
-        }
-      }
-    }
-  }
+  values = [
+    yamlencode({
+      clusterName         = var.cluster_name
+      instanceProfileName = var.karpenter_instance_profile_name
+      instanceCategory    = var.karpenter_instance_category
+      instanceGeneration  = var.karpenter_instance_generation
+      gpuInstanceFamily   = var.karpenter_gpus_instance_family
+      gpuInstanceTypes    = var.karpenter_gpus_instance_types
+    })
+  ]
 }
 
 # Disable the old gp2 storage class

@@ -1,0 +1,54 @@
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: default
+spec:
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    expireAfter: 720h
+  template:
+    metadata:
+      labels:
+        type: karpenter
+    spec:
+      nodeClassRef:
+        name: default
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: {{ .Values.instanceCategory | toYaml }}
+        - key: karpenter.k8s.aws/instance-generation
+          operator: In
+          values: {{ .Values.instanceGeneration | toYaml }}
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu
+spec:
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    expireAfter: 720h
+  template:
+    metadata:
+      labels:
+        type: karpenter
+        node.kubernetes.io/instance-type: nvidia-gpu
+    spec:
+      nodeClassRef:
+        name: default
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: {{ .Values.gpuInstanceFamily | toYaml }}
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: {{ .Values.gpuInstanceTypes | toYaml }}
+        - key: karpenter.sh/provisioner-name
+          operator: Exists
