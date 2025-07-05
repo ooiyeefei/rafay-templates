@@ -11,6 +11,7 @@ resource "local_file" "openwebui_values_yaml" {
     region         = var.aws_region
     openwebui_iam_role_arn = var.openwebui_iam_role_arn
     namespace              = var.namespace
+    enable_ollama_workload = var.enable_ollama_workload
     external_vllm_endpoint = var.external_vllm_endpoint
   })
   filename = "values.yaml"
