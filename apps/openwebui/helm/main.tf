@@ -50,14 +50,6 @@ resource "kubernetes_secret" "ghcr_creds" {
   }
 
   type = "kubernetes.io/dockerconfigjson"
-
-  # Ensure this secret is created before the Helm chart tries to use it.
-  depends_on = [
-    # Assuming you have a resource that ensures the namespace exists.
-    # If not, you may need to depend on the workload which creates it.
-    # For now, let's depend on the workload itself.
-    rafay_workload.openwebui_helm 
-  ]
 }
 
 # --- Rafay Workload Deployment ---
