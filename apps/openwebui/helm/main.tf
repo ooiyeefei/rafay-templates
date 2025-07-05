@@ -42,7 +42,7 @@ resource "rafay_workload" "openwebui_helm" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v-${var.deployment_suffix}"
+    version = "v-${var.deployment_suffix}-${substr(local_file.openwebui_values_yaml.content_sha256, 0, 8)}"
     artifact {
       type = "Helm"
       artifact {

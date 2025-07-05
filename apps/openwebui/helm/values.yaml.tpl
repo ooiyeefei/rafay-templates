@@ -33,8 +33,6 @@ extraEnvVars:
 
 pipelines:
   enabled: false
-  
-openaiBaseApiUrls: ["http://vllm-service/v1"]
 
 %{ if external_vllm_endpoint != "" ~}
 # --- Use External vLLM Endpoint ---
