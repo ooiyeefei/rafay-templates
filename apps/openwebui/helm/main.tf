@@ -103,8 +103,6 @@ resource "rafay_workload" "ollama_helm" {
         chart_name    = "ollama"
         chart_version = "0.29.0"
 
-        release_name = "ollama-server"
-
         values_paths {
           name = "file://ollama-values.yaml"
         }
