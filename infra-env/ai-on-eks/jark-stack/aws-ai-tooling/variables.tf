@@ -34,18 +34,23 @@ variable "aws_load_balancer_controller_irsa_role_arn" {
   type        = string
 }
 
+variable "karpenter_irsa_role_arn" {
+  description = "The ARN for the Karpenter controller IAM Role."
+  type        = string
+}
+
 
 # --- Tooling Configuration ---
 variable "karpenter_chart_version" {
   description = "The version of the Karpenter Helm chart to install."
   type        = string
-  default     = "v0.36.1"
+  default     = "1.4.0""
 }
 
 variable "kuberay_chart_version" {
   description = "The version of the KubeRay Operator Helm chart to install."
   type        = string
-  default     = "1.1.1"
+  default     = "1.4.0"
 }
 
 variable "karpenter_instance_category" {

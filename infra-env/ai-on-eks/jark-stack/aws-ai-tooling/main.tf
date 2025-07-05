@@ -19,6 +19,12 @@ provider "helm" {
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
     token                  = data.aws_eks_cluster_auth.cluster.token
   }
+  # Configures the provider to log into ECR Public.
+  registry_login {
+    address  = "public.ecr.aws"
+    username = data.aws_ecrpublic_authorization_token.token.user_name
+    password = data.aws_ecrpublic_authorization_token.token.password
+  }
 }
 
 provider "kubernetes" {
@@ -27,32 +33,17 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
+data "aws_ecrpublic_authorization_token" "token" {
+  provider = aws.ecr
+}
+
 #---------------------------------------------------------------
 # IRSA for Karpenter
 #---------------------------------------------------------------
-# Karpenter requires an IAM role to manage EC2 instances. This
-# is the most critical part of its setup.
-
-resource "aws_iam_role" "karpenter_controller" {
-  name = "${var.cluster_name}-karpenter-controller"
-  assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Federated = var.oidc_provider_arn }
-      Action    = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          "${replace(var.cluster_oidc_issuer_url, "https://", "")}:sub" : "system:serviceaccount:karpenter:karpenter"
-        }
-      }
-    }]
-  })
-  tags = var.tags
-}
+# Policy attachment to use the role ARN from the variable
 
 resource "aws_iam_role_policy_attachment" "karpenter_controller" {
-  role       = aws_iam_role.karpenter_controller.name
+  role       = var.karpenter_irsa_role_arn
   policy_arn = aws_iam_policy.karpenter_controller.arn
 }
 
@@ -77,7 +68,7 @@ resource "helm_release" "karpenter" {
   set = [
     {
       name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = aws_iam_role.karpenter_controller.arn
+      value = var.karpenter_irsa_role_arn
     },
     {
       name  = "settings.aws.clusterName"
@@ -256,7 +247,7 @@ resource "helm_release" "aws_efs_csi_driver" {
   repository = "https://kubernetes-sigs.github.io/aws-efs-csi-driver/"
   chart      = "aws-efs-csi-driver"
   namespace  = "kube-system"
-  version    = "2.8.1" # Pin to a specific, tested version
+  version    = "2.4.1"
 
   set = [
     {

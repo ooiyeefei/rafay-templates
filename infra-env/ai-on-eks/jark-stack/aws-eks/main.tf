@@ -216,3 +216,26 @@ module "aws_load_balancer_controller_irsa" {
   }
   tags = var.tags
 }
+
+#---------------------------------------------------------------
+# IAM Role for Service Account (IRSA) for Karpenter
+#---------------------------------------------------------------
+module "karpenter_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  role_name_prefix = format("%s-%s-", var.cluster_name, "karpenter")
+
+  # Karpenter needs a custom policy, not a managed one.
+  # We will attach the policy in the ai-tooling module where it's defined.
+  attach_karpenter_controller_policy = false
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      # This MUST match the namespace/sa_name used by the Helm chart
+      namespace_service_accounts = ["karpenter:karpenter"]
+    }
+  }
+  tags = var.tags
+}

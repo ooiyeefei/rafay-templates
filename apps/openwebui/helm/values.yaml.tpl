@@ -53,7 +53,7 @@ ollama:
   enabled: false
 %{ else ~}
   # CASE 2 & 3: Embedded Ollama (GPU or non-GPU)
-  # NOTE: These lines are no longer indented.
+  # NOTE: The following keys are indented to be children of 'ollama:'
   enabled: ${enable_ollama_workload}
   image:
     repository: ollama/ollama

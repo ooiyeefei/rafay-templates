@@ -64,3 +64,8 @@ output "aws_load_balancer_controller_irsa_role_arn" {
   description = "The ARN of the IAM role for the AWS Load Balancer Controller."
   value       = module.aws_load_balancer_controller_irsa.iam_role_arn
 }
+
+output "karpenter_irsa_role_arn" {
+  description = "The ARN of the IAM role for the Karpenter controller."
+  value       = module.karpenter_irsa.iam_role_arn
+}
