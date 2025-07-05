@@ -19,14 +19,6 @@ provider "helm" {
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
     token                  = data.aws_eks_cluster_auth.cluster.token
   }
-  # Configures the provider to log into ECR Public.
-  registry_login = [
-    {
-      address  = "public.ecr.aws"
-      username = data.aws_ecrpublic_authorization_token.token.user_name
-      password = data.aws_ecrpublic_authorization_token.token.password
-    }
-  ]
 }
 
 provider "kubernetes" {
@@ -66,6 +58,9 @@ resource "helm_release" "karpenter" {
   repository       = "oci://public.ecr.aws/karpenter"
   chart            = "karpenter"
   version          = var.karpenter_chart_version
+
+  repository_username = data.aws_ecrpublic_authorization_token.token.user_name
+  repository_password = data.aws_ecrpublic_authorization_token.token.password
 
   set = [
     {
