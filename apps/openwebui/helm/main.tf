@@ -95,8 +95,7 @@ resource "rafay_workload" "ollama_helm" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    # Version is tied to its own values file.
-    version = "v-${var.deployment_suffix}-${substr(local_file.ollama_values_yaml.content_sha256, 0, 8)}"
+    version = "v-${var.deployment_suffix}-${substr(local_file.ollama_values_yaml[0].content_sha256, 0, 8)}"
     artifact {
       type = "Helm"
       artifact {

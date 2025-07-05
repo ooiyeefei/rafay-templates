@@ -20,11 +20,13 @@ provider "helm" {
     token                  = data.aws_eks_cluster_auth.cluster.token
   }
   # Configures the provider to log into ECR Public.
-  registry_login {
-    address  = "public.ecr.aws"
-    username = data.aws_ecrpublic_authorization_token.token.user_name
-    password = data.aws_ecrpublic_authorization_token.token.password
-  }
+  registry_login = [
+    {
+      address  = "public.ecr.aws"
+      username = data.aws_ecrpublic_authorization_token.token.user_name
+      password = data.aws_ecrpublic_authorization_token.token.password
+    }
+  ]
 }
 
 provider "kubernetes" {

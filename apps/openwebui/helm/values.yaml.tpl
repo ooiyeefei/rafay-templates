@@ -42,9 +42,8 @@ pipelines:
 %{ if external_vllm_endpoint != "" ~}
 # CASE 1: Use the provided external endpoint.
 openaiBaseApiUrls: ["${external_vllm_endpoint}"]
-%{ elseif enable_ollama_workload ~}
+%{ else if enable_ollama_workload ~} # <--- CORRECTED KEYWORD
 # CASE 2: No external endpoint, but internal Ollama is enabled. Point to its service.
-# The service name 'ollama-server' matches the 'release_name' in the new workload.
 openaiBaseApiUrls: ["http://ollama-server.${namespace}.svc.cluster.local:11434"]
 %{ else ~}
 # CASE 3: No external or internal endpoint. The UI will have no models.
