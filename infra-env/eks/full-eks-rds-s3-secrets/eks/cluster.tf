@@ -116,7 +116,7 @@ locals {
       max_size                     = config.max_size
       desired_size                 = config.desired_size
       instance_types               = config.instance_types
-      ami_type                     = key == "gpu" ? "AL2_x86_64_GPU" : "AL2_x86_64"
+      ami_type                     = key == "gpu" ? "BOTTLEROCKET_x86_64_NVIDIA" : "AL2_x86_64"
       capacity_type                = config.capacity_type
       disk_size                    = config.disk_size
       disk_type                    = config.disk_type
