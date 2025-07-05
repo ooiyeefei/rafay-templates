@@ -14,11 +14,10 @@ serviceAccount:
   annotations:
     eks.amazonaws.com/role-arn: ${openwebui_iam_role_arn}
   enable: true
-  name: "open-webui-pia"  # Must match the service_account in the Pod Identity association
+  name: "open-webui-pia"
 
 # Configure environment variables
 extraEnvVars:
-  # Database configuration for PostgreSQL with pg_vector
   - name: "DATABASE_URL"
     valueFrom:
       secretKeyRef:
@@ -51,29 +50,25 @@ openaiBaseApiUrls: ["http://localhost:11434"]
 ollama:
   %{ if external_vllm_endpoint != "" ~}
   # CASE 1: An external endpoint is provided.
-  # The embedded Ollama is simply disabled.
   enabled: false
   %{ else ~}
-  # --- BASE SETTINGS FOR EMBEDDED OLLAMA ---
-  # These settings apply whether you are on GPU or not.
+  # CASE 2 & 3: Embedded Ollama (GPU or non-GPU)
   enabled: ${enable_ollama_workload}
   image:
     repository: ollama/ollama
     tag: "${ollama_image_version}"
 
-  # Persistence is now correctly applied in all embedded cases.
   persistence:
     enabled: true
     storageClass: "gp3"
     size: 50Gi
 
   models:
-    %{ for model in ollama_models ~}
+  %{ for model in ollama_models ~}
     - name: "${model}"
-    %{ endfor ~}
+  %{ endfor ~}
 
-  # --- GPU-SPECIFIC ADDITIONS ---
-  # This block now ONLY adds the settings needed for GPU scheduling.
+  # GPU-specific settings are conditionally added below
   %{ if ollama_on_gpu ~}
   nodeSelector:
     accelerator: "nvidia"
