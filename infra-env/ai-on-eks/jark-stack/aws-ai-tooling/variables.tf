@@ -1,0 +1,69 @@
+# --- Inputs from 'aws-platform-eks' template ---
+variable "cluster_name" {
+  description = "The name of the EKS cluster to deploy tooling to."
+  type        = string
+}
+
+variable "oidc_provider_arn" {
+  description = "The ARN of the OIDC provider for the EKS cluster."
+  type        = string
+}
+
+variable "cluster_oidc_issuer_url" {
+  description = "The OIDC issuer URL for the EKS cluster."
+  type        = string
+}
+
+variable "karpenter_instance_profile_name" {
+  description = "The name of the EC2 instance profile for Karpenter nodes to use."
+  type        = string
+}
+
+variable "aws_account_id" {
+  description = "The AWS Account ID where the cluster is deployed."
+  type        = string
+}
+
+# --- Tooling Configuration (from blueprint.tfvars) ---
+variable "karpenter_chart_version" {
+  description = "The version of the Karpenter Helm chart to install."
+  type        = string
+  default     = "v0.36.1"
+}
+
+variable "kuberay_chart_version" {
+  description = "The version of the KubeRay Operator Helm chart to install."
+  type        = string
+  default     = "1.1.1"
+}
+
+variable "karpenter_instance_category" {
+  description = "List of EC2 instance categories for the default Karpenter NodePool."
+  type        = list(string)
+  default     = ["c", "m", "r"]
+}
+
+variable "karpenter_instance_generation" {
+  description = "EC2 instance generations for the default Karpenter NodePool."
+  type        = list(string)
+  default     = ["5", "6"]
+}
+
+variable "karpenter_gpus_instance_family" {
+  description = "List of GPU instance families for the GPU Karpenter NodePool (e.g., g5, p4d)."
+  type        = list(string)
+  default     = ["g5"]
+}
+
+variable "karpenter_gpus_instance_types" {
+  description = "Specific GPU instance types Karpenter is allowed to provision."
+  type        = list(string)
+  default     = ["g5.xlarge", "g5.2xlarge"]
+}
+
+# --- General ---
+variable "tags" {
+  description = "A map of tags to apply to all resources."
+  type        = map(string)
+  default     = {}
+}

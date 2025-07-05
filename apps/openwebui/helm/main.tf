@@ -63,8 +63,11 @@ resource "kubernetes_secret" "ghcr_creds" {
 # --- Rafay Workload Deployment ---
 
 resource "rafay_workload" "openwebui_helm" {
+  count = var.enable_ollama_workload ? 1 : 0
+
   depends_on = [
-    local_file.openwebui_values_yaml
+    local_file.openwebui_values_yaml,
+    kubernetes_secret.ghcr_creds
   ]
 
   metadata {

@@ -1,14 +1,5 @@
 # Open WebUI Helm Chart Values
 
-image:
-  repository: "ghcr.io/open-webui/ollama"
-  tag: "0.1.41" # The version known to work with T4 GPU
-  pullPolicy: IfNotPresent
-
-# This tells the pods to use the secret we created in Terraform.
-imagePullSecrets:
-- name: "ghcr-io-creds" 
-
 # Configure persistence to use S3
 persistence:
   enabled: true
@@ -63,8 +54,13 @@ ollama:
   enabled: ${enable_ollama_workload}
 
   image:
-    repository: ghcr.io/open-webui/ollama
+    # Use the known-good image from GHCR to fix the GLIBC issue
+    repository: "ghcr.io/open-webui/ollama"
     tag: "${ollama_image_version}"
+  
+  # Tell the Ollama pod to use the secret you created in Terraform
+  imagePullSecrets:
+    - name: "ghcr-io-creds"
 
   nodeSelector:
     accelerator: "nvidia"
