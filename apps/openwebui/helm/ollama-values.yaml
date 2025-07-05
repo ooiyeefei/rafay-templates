@@ -1,11 +1,13 @@
-# Values for the independent, official Ollama chart.
+# These values are for the official, independent Ollama chart.
 
-# --- Common Settings ---
+# --- Common Settings (Applied Always) ---
+# We always want persistence for a stateful service like Ollama.
 persistence:
   enabled: true
   storageClass: "gp3"
   size: 50Gi
 
+# We only add the models block if the list is not empty.
 %{ if length(ollama_models) > 0 ~}
 models:
 %{ for model in ollama_models ~}
@@ -15,6 +17,7 @@ models:
 
 
 # --- GPU-Specific Settings ---
+# This block is now ONLY rendered if 'ollama_on_gpu' is true.
 %{ if ollama_on_gpu ~}
 nodeSelector:
   accelerator: "nvidia"

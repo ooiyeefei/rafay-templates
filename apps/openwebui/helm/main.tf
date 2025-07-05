@@ -10,13 +10,20 @@ resource "local_file" "openwebui_values_yaml" {
     s3_bucket_name = var.s3_bucket_name
     region         = var.aws_region
     openwebui_iam_role_arn = var.openwebui_iam_role_arn
-    ollama_on_gpu          = var.ollama_on_gpu
-    enable_ollama_workload = var.enable_ollama_workload
+    namespace              = var.namespace
     external_vllm_endpoint = var.external_vllm_endpoint
-    ollama_models          = local.final_model_list 
-    ollama_image_version   = var.ollama_image_version
   })
   filename = "values.yaml"
+}
+
+resource "local_file" "ollama_values_yaml" {
+  count = var.enable_ollama_workload ? 1 : 0
+
+  content  = templatefile("${path.module}/ollama-values.yaml.tpl", {
+    ollama_models = local.final_model_list,
+    ollama_on_gpu = var.ollama_on_gpu 
+  })
+  filename = "ollama-values.yaml"
 }
 
 resource "local_file" "load_balancer_yaml" {
@@ -37,6 +44,13 @@ resource "rafay_workload" "openwebui_helm" {
     name    = "openwebui-${var.namespace}"
     project = var.project_name
   }
+
+  timeouts {
+    create = "10m"
+    update = "10m"
+    delete = "10m"
+  }
+
   spec {
     namespace = var.namespace
     placement {
@@ -58,6 +72,48 @@ resource "rafay_workload" "openwebui_helm" {
   }
 }
 
+resource "rafay_workload" "ollama_helm" {
+  count = var.enable_ollama_workload ? 1 : 0
+
+  depends_on = [
+    local_file.ollama_values_yaml
+  ]
+
+  metadata {
+    name    = "ollama-server-${var.namespace}"
+    project = var.project_name
+  }
+
+  timeouts {
+    create = "15m"
+    update = "15m"
+    delete = "10m"
+  }
+
+  spec {
+    namespace = var.namespace
+    placement {
+      selector = "rafay.dev/clusterName=${var.cluster_name}"
+    }
+    # Version is tied to its own values file.
+    version = "v-${var.deployment_suffix}-${substr(local_file.ollama_values_yaml.content_sha256, 0, 8)}"
+    artifact {
+      type = "Helm"
+      artifact {
+        repository    = "ollama-official-repo"
+        chart_name    = "ollama"
+        chart_version = "0.29.0"
+
+        release_name = "ollama-server"
+
+        values_paths {
+          name = "file://ollama-values.yaml"
+        }
+      }
+    }
+  }
+}
+
 # Create the AWS EKS Pod Identity Association.
 # This is the crucial link between the AWS role and the K8s Service Account.
 resource "aws_eks_pod_identity_association" "openwebui" {
@@ -71,7 +127,7 @@ resource "aws_eks_pod_identity_association" "openwebui" {
 
 resource "rafay_workload" "openwebui_load_balancer" {
   depends_on = [
-    aws_eks_pod_identity_association.openwebui,
+    rafay_workload.openwebui_helm,
     local_file.load_balancer_yaml
   ]
 
