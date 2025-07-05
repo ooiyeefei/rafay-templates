@@ -17,7 +17,7 @@ locals {
   tags = merge(
     var.tags,
     {
-      "kubernetes.io/cluster/${var.vpc_name}" = "shared"
+      "kubernetes.io/cluster/${var.cluster_name}" = "shared"
     }
   )
 }
