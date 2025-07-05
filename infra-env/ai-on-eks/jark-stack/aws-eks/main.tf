@@ -179,3 +179,45 @@ module "ebs_csi_driver_irsa" {
   }
   tags = var.tags
 }
+
+#---------------------------------------------------------------
+# IAM Role for Service Account (IRSA) for EFS CSI Driver
+#---------------------------------------------------------------
+module "efs_csi_driver_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39" # Use the same version as your other module
+
+  role_name_prefix      = format("%s-%s-", var.cluster_name, "efs-csi-driver")
+  attach_efs_csi_policy = true # This is the key flag for EFS
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      # The default service account for the EFS CSI controller
+      namespace_service_accounts = ["kube-system:efs-csi-controller-sa"]
+    }
+  }
+  tags = var.tags
+}
+
+#---------------------------------------------------------------
+# IAM Role for Service Account (IRSA) for AWS Load Balancer Controller
+#---------------------------------------------------------------
+module "aws_load_balancer_controller_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  role_name_prefix = format("%s-%s-", var.cluster_name, "lbc")
+
+  # This uses a managed policy maintained by the module maintainers.
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      # This MUST match the namespace/sa_name we create in the ai-tooling module
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+  tags = var.tags
+}

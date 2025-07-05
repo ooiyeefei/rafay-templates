@@ -55,3 +55,13 @@ output "eks_managed_node_group_instance_profile_name" {
   # We are going to reference the instance profile created for the 'core_node_group' to next module eks add on stack.
   value = module.eks.eks_managed_node_groups["core_node_group"].iam_instance_profile_name
 }
+
+output "efs_csi_driver_irsa_role_arn" {
+  description = "The ARN of the IAM role for the EFS CSI driver."
+  value       = module.efs_csi_driver_irsa.iam_role_arn
+}
+
+output "aws_load_balancer_controller_irsa_role_arn" {
+  description = "The ARN of the IAM role for the AWS Load Balancer Controller."
+  value       = module.aws_load_balancer_controller_irsa.iam_role_arn
+}
