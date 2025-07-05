@@ -57,6 +57,14 @@ ollama:
     repository: ollama/ollama
     tag: "${ollama_image_version}"
 
+  # Configure a Persistent Volume for the model data.
+  persistence:
+    enabled: true
+    # For EKS on AWS, 'gp3' is the modern, recommended storage class.
+    storageClass: "gp3" 
+    # Allocate a reasonable amount of space. Models can be large.
+    size: 50Gi
+
   nodeSelector:
     accelerator: "nvidia"
   tolerations:
