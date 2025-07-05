@@ -48,11 +48,12 @@ openaiBaseApiUrls: ["http://localhost:11434"]
 %{ endif ~}
 
 ollama:
-  %{ if external_vllm_endpoint != "" ~}
+%{ if external_vllm_endpoint != "" ~}
   # CASE 1: An external endpoint is provided.
   enabled: false
-  %{ else ~}
+%{ else ~}
   # CASE 2 & 3: Embedded Ollama (GPU or non-GPU)
+  # NOTE: These lines are no longer indented.
   enabled: ${enable_ollama_workload}
   image:
     repository: ollama/ollama
@@ -63,8 +64,6 @@ ollama:
     storageClass: "gp3"
     size: 50Gi
 
-  # Only render the 'models' block if the list is not empty.
-  # This prevents the "dangling key" YAML syntax error.
   %{ if length(ollama_models) > 0 ~}
   models:
   %{ for model in ollama_models ~}
@@ -72,7 +71,6 @@ ollama:
   %{ endfor ~}
   %{ endif ~}
 
-  # GPU-specific settings are conditionally added below
   %{ if ollama_on_gpu ~}
   nodeSelector:
     accelerator: "nvidia"
@@ -85,4 +83,4 @@ ollama:
     limits:
       nvidia.com/gpu: 1
   %{ endif ~}
-  %{ endif ~}
+%{ endif ~}
