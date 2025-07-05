@@ -48,3 +48,10 @@ output "configure_kubectl_command" {
   description = "Run this command to configure kubectl to connect to the new EKS cluster. Make sure you are logged in with the correct AWS profile."
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
+
+output "eks_managed_node_group_instance_profile_name" {
+  description = "The name of the IAM Instance Profile used by the EKS managed node groups. This should be passed to Karpenter."
+  # The module creates a role and instance profile for the node groups defined in `eks_managed_node_groups`.
+  # We are going to reference the instance profile created for the 'core_node_group' to next module eks add on stack.
+  value = module.eks.eks_managed_node_groups["core_node_group"].iam_instance_profile_name
+}
