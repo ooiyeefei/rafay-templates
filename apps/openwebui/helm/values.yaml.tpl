@@ -63,10 +63,14 @@ ollama:
     storageClass: "gp3"
     size: 50Gi
 
+  # Only render the 'models' block if the list is not empty.
+  # This prevents the "dangling key" YAML syntax error.
+  %{ if length(ollama_models) > 0 ~}
   models:
   %{ for model in ollama_models ~}
     - name: "${model}"
   %{ endfor ~}
+  %{ endif ~}
 
   # GPU-specific settings are conditionally added below
   %{ if ollama_on_gpu ~}
