@@ -112,3 +112,15 @@ variable "ollama_image_version" {
   type        = string
   default     = "0.1.41"
 }
+
+variable "github_user" {
+  description = "The GitHub username used to authenticate to GHCR."
+  type        = string
+  sensitive   = true
+}
+
+variable "github_pat" {
+  description = "The GitHub Personal Access Token (PAT) with read:packages scope."
+  type        = string
+  sensitive   = true
+}
