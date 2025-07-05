@@ -1,4 +1,4 @@
-# --- Inputs from the 'aws-foundation-vpc' template ---
+# --- Inputs from the 'aws-networking' template ---
 variable "vpc_id" {
   description = "The ID of the VPC to deploy the EKS cluster into."
   type        = string
@@ -77,4 +77,9 @@ variable "tags" {
   description = "A map of tags to apply to all resources."
   type        = map(string)
   default     = {}
+}
+
+variable "aws_region" {
+  description = "The AWS region to deploy the VPC into."
+  type        = string
 }
