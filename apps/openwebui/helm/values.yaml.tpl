@@ -39,48 +39,8 @@ tolerations:
 pipelines:
   enabled: false
 
-%{ if external_vllm_endpoint != "" ~}
-# --- Use External vLLM Endpoint ---
-openaiBaseApiUrls: ["${external_vllm_endpoint}"]
-%{ else ~}
-# --- Use Embedded Ollama Workload ---
-openaiBaseApiUrls: ["http://localhost:11434"]
-%{ endif ~}
+openaiBaseApiUrls: ["http://ollama-server.${namespace}.svc.cluster.local:11434"]
 
 ollama:
-%{ if external_vllm_endpoint != "" ~}
-  # CASE 1: An external endpoint is provided.
+  # Ollama will be handled separately if enabled
   enabled: false
-%{ else ~}
-  # CASE 2 & 3: Embedded Ollama (GPU or non-GPU)
-  # NOTE: The following keys are indented to be children of 'ollama:'
-  enabled: ${enable_ollama_workload}
-  image:
-    repository: ollama/ollama
-    tag: "${ollama_image_version}"
-
-  persistence:
-    enabled: true
-    storageClass: "gp3"
-    size: 50Gi
-
-  %{ if length(ollama_models) > 0 ~}
-  models:
-  %{ for model in ollama_models ~}
-    - name: "${model}"
-  %{ endfor ~}
-  %{ endif ~}
-
-  %{ if ollama_on_gpu ~}
-  nodeSelector:
-    accelerator: "nvidia"
-  tolerations:
-    - key: "nvidia.com/gpu"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-  %{ endif ~}
-%{ endif ~}

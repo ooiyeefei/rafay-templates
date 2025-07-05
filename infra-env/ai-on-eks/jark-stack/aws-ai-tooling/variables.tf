@@ -44,7 +44,7 @@ variable "karpenter_irsa_role_arn" {
 variable "karpenter_chart_version" {
   description = "The version of the Karpenter Helm chart to install."
   type        = string
-  default     = "1.4.0""
+  default     = "1.4.0"
 }
 
 variable "kuberay_chart_version" {
