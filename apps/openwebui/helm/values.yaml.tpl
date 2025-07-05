@@ -31,6 +31,9 @@ extraEnvVars:
   - name: WEBUI_AUTH
     value: "False"
 
+pipelines:
+  enabled: false
+  
 openaiBaseApiUrls: ["http://vllm-service/v1"]
 
 %{ if external_vllm_endpoint != "" ~}
