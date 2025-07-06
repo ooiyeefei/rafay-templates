@@ -65,28 +65,26 @@ resource "helm_release" "karpenter" {
   wait = true
   depends_on = [helm_release.aws_load_balancer_controller]
 
-  set = [
-    {
-      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = var.karpenter_irsa_role_arn
-    },
-    # This value is for the AWS provider settings within Karpenter
-    {
-      name  = "settings.aws.clusterName"
-      value = var.cluster_name
-    },
-    {
-      name  = "settings.aws.defaultInstanceProfile"
-      value = var.karpenter_instance_profile_name
-    },
-    {
-      name  = "extraEnv[0].name"
-      value = "KARPENTER_CLUSTER_NAME"
-    },
-    {
-      name  = "extraEnv[0].value"
-      value = var.cluster_name
-    }
+  values = [
+    yamlencode({
+      # This is the top-level setting for the pod's startup arguments
+      clusterName = var.cluster_name
+      
+      # This block configures the internal AWS provider settings
+      settings = {
+        aws = {
+          clusterName            = var.cluster_name
+          defaultInstanceProfile = var.karpenter_instance_profile_name
+        }
+      }
+      
+      # This block correctly configures IRSA
+      serviceAccount = {
+        annotations = {
+          "eks.amazonaws.com/role-arn" = var.karpenter_irsa_role_arn
+        }
+      }
+    })
   ]
 }
 
