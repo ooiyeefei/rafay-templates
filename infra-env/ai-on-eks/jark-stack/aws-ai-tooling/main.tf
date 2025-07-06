@@ -125,17 +125,18 @@ module "data_addons" {
   # It solves the CRD race condition correctly.
   enable_karpenter_resources = true
   karpenter_resources_helm_config = {
-    karpenter-node-config = {
+    # --- DEFAULT CPU NODEPOOL ---
+    # This key defines one helm_release.
+    "default-cpu" = {
       values = [
         yamlencode({
-          # This name is for the Helm release itself, not the Kubernetes objects.
-          name = "karpenter-node-config"
+          # This name is used for the NodePool and EC2NodeClass Kubernetes objects
+          name = "default"
           
-          # Define the EC2NodeClass at the top level
           ec2NodeClass = {
-            name      = "default" # The name of the EC2NodeClass object
-            amiFamily = "AL2"
-            role      = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
+            # Use the variable name the chart expects
+            karpenterRole = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
+            amiFamily     = "AL2"
             subnetSelectorTerms = {
               tags = { "karpenter.sh/discovery" = var.cluster_name }
             }
@@ -144,31 +145,52 @@ module "data_addons" {
             }
           }
 
-          # Define the default NodePool at the top level
-          nodePools = {
-            default = {
-              # Requirements for the default CPU pool
-              requirements = [
-                { key = "karpenter.k8s.aws/instance-category", operator = "In", values = var.karpenter_instance_category },
-                { key = "karpenter.k8s.aws/instance-generation", operator = "In", values = var.karpenter_instance_generation },
-                { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
-                { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand", "spot"] }
-              ]
+          # Use the singular 'nodePool' object the chart expects
+          nodePool = {
+            requirements = [
+              { key = "karpenter.k8s.aws/instance-category", operator = "In", values = var.karpenter_instance_category },
+              { key = "karpenter.k8s.aws/instance-generation", operator = "In", values = var.karpenter_instance_generation },
+              { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
+              { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand", "spot"] }
+            ]
+          }
+        })
+      ]
+    }
+    # --- GPU NODEPOOL ---
+    # This key defines a second, separate helm_release.
+    "gpu" = {
+      values = [
+        yamlencode({
+          # This will create a NodePool named "gpu" and an EC2NodeClass named "gpu"
+          name = "gpu"
+
+          ec2NodeClass = {
+            # It can and should reuse the same IAM role
+            karpenterRole = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
+            amiFamily     = "AL2" # Or Bottlerocket if you prefer
+            subnetSelectorTerms = {
+              tags = { "karpenter.sh/discovery" = var.cluster_name }
             }
-            gpu = {
-              # Requirements for the GPU pool
-              taints = [{
-                key    = "nvidia.com/gpu"
-                value  = "true"
-                effect = "NoSchedule"
-              }]
-              requirements = [
-                { key = "karpenter.k8s.aws/instance-family", operator = "In", values = var.karpenter_gpus_instance_family },
-                { key = "node.kubernetes.io/instance-type", operator = "In", values = var.karpenter_gpus_instance_types },
-                { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
-                { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] }
-              ]
+            securityGroupSelectorTerms = {
+              tags = { "karpenter.sh/discovery" = var.cluster_name }
             }
+          }
+
+          nodePool = {
+            # The EC2NodeClass created above is implicitly linked by name.
+            # We add a taint to keep general workloads off these expensive nodes.
+            taints = [{
+              key    = "nvidia.com/gpu"
+              value  = "true"
+              effect = "NoSchedule"
+            }]
+            requirements = [
+              { key = "karpenter.k8s.aws/instance-family", operator = "In", values = var.karpenter_gpus_instance_family },
+              { key = "node.kubernetes.io/instance-type", operator = "In", values = var.karpenter_gpus_instance_types },
+              { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
+              { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] }
+            ]
           }
         })
       ]
