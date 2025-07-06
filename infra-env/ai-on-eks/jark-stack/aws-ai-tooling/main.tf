@@ -70,8 +70,14 @@ resource "helm_release" "karpenter" {
       name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
       value = var.karpenter_irsa_role_arn
     },
+    # This value is for the AWS provider settings within Karpenter
     {
       name  = "settings.aws.clusterName"
+      value = var.cluster_name
+    },
+    # THIS IS THE NEW, CRITICAL VALUE for the pod's startup arguments
+    {
+      name  = "clusterName"
       value = var.cluster_name
     },
     {
@@ -93,6 +99,9 @@ resource "helm_release" "volcano" {
   version    = "1.12.1"
 
   depends_on = [helm_release.aws_load_balancer_controller]
+
+  wait    = true
+  timeout = 300
 }
 
 # This operator allows us to create RayClusters declaratively.
