@@ -1,193 +1,201 @@
-#---------------------------------------------------------------
-# Provider Configuration
-#---------------------------------------------------------------
-# To manage resources inside the Kubernetes cluster, we must configure
-# the Helm and Kubernetes providers to connect to the EKS cluster
-# created in the previous stage.
+# -----------------------------------------------------------------------------
+# PROVIDER AND DATA SOURCE CONFIGURATION
+# -----------------------------------------------------------------------------
+# These are still required for Terraform to connect to the cluster and AWS.
 
-data "aws_eks_cluster" "cluster" {
-  name = var.cluster_name
+provider "kubernetes" {
+  host                   = var.cluster_endpoint
+  cluster_ca_certificate = base64decode(var.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
+}
+
+provider "helm" {
+  kubernetes = {
+    host                   = var.cluster_endpoint
+    cluster_ca_certificate = base64decode(var.cluster_certificate_authority_data)
+    token                  = data.aws_eks_cluster_auth.cluster.token
+  }
 }
 
 data "aws_eks_cluster_auth" "cluster" {
   name = var.cluster_name
 }
 
-provider "helm" {
-  kubernetes = {
-    host                   = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.cluster.token
-  }
-}
+data "aws_ecrpublic_authorization_token" "token" {}
 
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.cluster.token
-}
+# -----------------------------------------------------------------------------
+# FOUNDATIONAL ADD-ONS (from EKS Blueprints)
+# This module installs core services like networking, scheduling, and observability.
+# -----------------------------------------------------------------------------
 
-data "aws_ecrpublic_authorization_token" "token" {
-  provider = aws.ecr
-}
+module "eks_blueprints_addons" {
+  source  = "aws-ia/eks-blueprints-addons/aws"
+  version = "~> 1.20"
 
-data "aws_iam_policy_document" "karpenter_controller_policy" {
-  statement {
-    actions = [
-      "ec2:RunInstances",
-      "ec2:CreateLaunchTemplate",
-      "ec2:DescribeLaunchTemplates",
-      "ec2:DeleteLaunchTemplate",
-      "ec2:DescribeInstances",
-      "ec2:TerminateInstances",
-      "ec2:DescribeSubnets",
-      "ec2:DescribeSecurityGroups",
-      "ec2:DescribeInstanceTypes",
-      "iam:PassRole",
-      "ssm:GetParameter"
+  # --- Core Cluster Inputs ---
+  cluster_name      = var.cluster_name
+  cluster_endpoint  = var.cluster_endpoint
+  cluster_version   = var.eks_cluster_version
+  oidc_provider_arn = var.oidc_provider_arn
+
+  # --- Add-on Configurations ---
+  enable_aws_load_balancer_controller = true
+  enable_ingress_nginx                = true
+  enable_aws_efs_csi_driver           = true # Assuming you want EFS
+
+  # Kube-Prometheus-Stack for metrics and Grafana
+  enable_kube_prometheus_stack = true
+  kube_prometheus_stack = {
+    # This minimal config avoids needing extra files and installs a basic stack
+    values = [
+      yamlencode({
+        grafana = {
+          # You can add persistence, etc. here if needed
+          adminPassword = "prom-operator" # Change this in a real environment
+        }
+      })
     ]
-    resources = ["*"]
   }
+
+  # Karpenter Controller Installation
+  enable_karpenter = true
+  karpenter = {
+    chart_version           = "1.4.0" # The blueprint module uses versions without "v"
+    repository_username     = data.aws_ecrpublic_authorization_token.token.user_name
+    repository_password     = data.aws_ecrpublic_authorization_token.token.password
+    source_policy_documents = [data.aws_iam_policy_document.karpenter_controller_policy.json]
+  }
+
+  tags = var.tags
 }
 
-#---------------------------------------------------------------
-# IRSA for Karpenter
-#---------------------------------------------------------------
-# Policy attachment to use the role ARN from the variable
+# -----------------------------------------------------------------------------
+# DATA & AI ADD-ONS (from EKS Blueprints Data Addons)
+# This module installs AI/ML specific tools and the Karpenter CRDs.
+# -----------------------------------------------------------------------------
 
-resource "aws_iam_role_policy_attachment" "karpenter_controller" {
-  role       = split("/", var.karpenter_irsa_role_arn)[1]
-  policy_arn = aws_iam_policy.karpenter_controller.arn
-}
+module "data_addons" {
+  source  = "aws-ia/eks-data-addons/aws"
+  version = "~> 1.37"
 
-# The inline policy Karpenter needs to function
-resource "aws_iam_policy" "karpenter_controller" {
-  name        = "KarpenterControllerPolicy-${var.cluster_name}"
-  description = "Policy for the Karpenter controller."
-  policy      = data.aws_iam_policy_document.karpenter_controller.json
-}
+  # This module also needs the OIDC provider ARN
+  oidc_provider_arn = var.oidc_provider_arn
 
-#---------------------------------------------------------------
-# Helm Release: Karpenter
-#---------------------------------------------------------------
-resource "helm_release" "karpenter" {
-  namespace        = "karpenter"
-  create_namespace = true
-  name             = "karpenter"
-  repository       = "oci://public.ecr.aws/karpenter"
-  chart            = "karpenter"
-  version          = var.karpenter_chart_version
+  # --- Add-on Configurations ---
 
-  repository_username = data.aws_ecrpublic_authorization_token.token.user_name
-  repository_password = data.aws_ecrpublic_authorization_token.token.password
+  # Volcano for batch scheduling
+  enable_volcano = true
 
-  wait = true
-  depends_on = [helm_release.aws_load_balancer_controller]
-
-  values = [
-    yamlencode({
-      # This is the top-level setting for the pod's startup arguments
-      clusterName = var.cluster_name
-      
-      # This block configures the internal AWS provider settings
-      settings = {
-        aws = {
-          clusterName            = var.cluster_name
-          defaultInstanceProfile = var.karpenter_instance_profile_name
+  # KubeRay Operator, configured to use Volcano
+  enable_kuberay_operator = true
+  kuberay_operator_helm_config = {
+    version = "1.1.1"
+    values = [
+      yamlencode({
+        batchScheduler = {
+          enabled = true
         }
-      }
-      
-      # This block correctly configures IRSA
-      serviceAccount = {
-        annotations = {
-          "eks.amazonaws.com/role-arn" = var.karpenter_irsa_role_arn
+      })
+    ]
+  }
+
+  # Kubecost for cost monitoring
+  enable_kubecost = true
+  kubecost_helm_config = {
+    version             = "2.2.2"
+    repository_username = data.aws_ecrpublic_authorization_token.token.user_name
+    repository_password = data.aws_ecrpublic_authorization_token.token.password
+    # This points Kubecost to the Prometheus installed by the *other* blueprint module
+    values = [
+      yamlencode({
+        prometheus = {
+          server = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
         }
-      }
-    })
-  ]
-}
+      })
+    ]
+  }
 
-#---------------------------------------------------------------
-# Helm Release: KubeRay Operator
-#---------------------------------------------------------------
-resource "helm_release" "volcano" {
-  name       = "volcano"
-  repository = "https://volcano-sh.github.io/helm-charts"
-  chart      = "volcano"
-  namespace  = "volcano-system"
-  create_namespace = true
-  version    = "1.12.1"
-
-  depends_on = [helm_release.aws_load_balancer_controller]
-
-  wait    = true
-  timeout = 300
-}
-
-# This operator allows us to create RayClusters declaratively.
-resource "helm_release" "kuberay_operator" {
-  depends_on = [
-    helm_release.karpenter,
-    helm_release.aws_load_balancer_controller
-  ]
-  namespace        = "ray-system"
-  create_namespace = true
-  name             = "kuberay-operator"
-  repository       = "https://ray-project.github.io/kuberay-helm/"
-  chart            = "kuberay-operator"
-  version          = var.kuberay_chart_version
-
-  
-
-  set = [
-    {
-      name  = "batchScheduler.enabled"
-      value = "true"
+  # This is the "Easy Button" for creating Karpenter's NodePool and EC2NodeClass.
+  # It solves the CRD race condition correctly.
+  enable_karpenter_resources = true
+  karpenter_resources_helm_config = {
+    # --- DEFAULT CPU NODEPOOL ---
+    # This defines the "default" NodePool and a corresponding "default" EC2NodeClass
+    default = {
+      values = [
+        yamlencode({
+          name        = "default"
+          clusterName = var.cluster_name
+          ec2NodeClass = {
+            amiFamily     = "AL2"
+            karpenterRole = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
+            subnetSelectorTerms = {
+              "karpenter.sh/discovery" = var.cluster_name
+            }
+            securityGroupSelectorTerms = {
+              "karpenter.sh/discovery" = var.cluster_name
+            }
+          }
+          nodePool = {
+            requirements = [
+              { key = "karpenter.k8s.aws/instance-category", operator = "In", values = var.karpenter_instance_category },
+              { key = "karpenter.k8s.aws/instance-generation", operator = "In", values = var.karpenter_instance_generation },
+              { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
+              { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand", "spot"] }
+            ]
+          }
+        })
+      ]
     }
-  ]
+    # --- GPU NODEPOOL ---
+    # This defines a separate "gpu" NodePool that uses the SAME "default" EC2NodeClass
+    gpu = {
+      values = [
+        yamlencode({
+          # Note: We are only defining a NodePool here. It will reuse the EC2NodeClass from the 'default' set above.
+          # The data_addons module is smart enough to handle this.
+          name = "gpu"
+          nodePool = {
+            taints = [{
+              key    = "nvidia.com/gpu"
+              value  = "true"
+              effect = "NoSchedule"
+            }]
+            requirements = [
+              { key = "karpenter.k8s.aws/instance-family", operator = "In", values = var.karpenter_gpus_instance_family },
+              { key = "node.kubernetes.io/instance-type", operator = "In", values = var.karpenter_gpus_instance_types },
+              { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
+              { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] } # Often GPUs are on-demand only
+            ]
+          }
+        })
+      ]
+    }
+  }
+
+  depends_on = [module.eks_blueprints_addons]
 }
 
-resource "helm_release" "karpenter_resources" {
-  depends_on = [helm_release.karpenter]
+# -----------------------------------------------------------------------------
+# FOUNDATIONAL STORAGE CONFIGURATION (Best Practice)
+# These are still good to manage manually for full control.
+# -----------------------------------------------------------------------------
 
-  name          = "karpenter-resources"
-  # This points to the local directory you just created
-  chart         = "./karpenter-resources"
-  namespace     = "karpenter"
-
-  values = [
-    yamlencode({
-      clusterName         = var.cluster_name
-      instanceProfileName = var.karpenter_instance_profile_name
-      instanceCategory    = var.karpenter_instance_category
-      instanceGeneration  = var.karpenter_instance_generation
-      gpuInstanceFamily   = var.karpenter_gpus_instance_family
-      gpuInstanceTypes    = var.karpenter_gpus_instance_types
-    })
-  ]
-}
-
-# Disable the old gp2 storage class
 resource "kubernetes_annotations" "disable_gp2" {
   api_version = "storage.k8s.io/v1"
   kind        = "StorageClass"
-  metadata {
-    name = "gp2"
-  }
-  annotations = {
-    "storageclass.kubernetes.io/is-default-class" = "false"
-  }
-  force = true
+  metadata { name = "gp2" }
+  annotations = { "storageclass.kubernetes.io/is-default-class" = "false" }
+  force       = true
+
+  # Ensure this happens only after the cluster is fully up
+  depends_on = [module.eks_blueprints_addons]
 }
 
-# Create a new default gp3 storage class
 resource "kubernetes_storage_class" "default_gp3" {
-  depends_on = [kubernetes_annotations.disable_gp2]
   metadata {
-    name = "gp3"
-    annotations = {
-      "storageclass.kubernetes.io/is-default-class" = "true"
-    }
+    name        = "gp3"
+    annotations = { "storageclass.kubernetes.io/is-default-class" = "true" }
   }
   storage_provisioner    = "ebs.csi.aws.com"
   reclaim_policy         = "Delete"
@@ -198,148 +206,5 @@ resource "kubernetes_storage_class" "default_gp3" {
     encrypted = "true"
     type      = "gp3"
   }
-}
-
-resource "helm_release" "aws_efs_csi_driver" {
-  name       = "aws-efs-csi-driver"
-  repository = "https://kubernetes-sigs.github.io/aws-efs-csi-driver/"
-  chart      = "aws-efs-csi-driver"
-  namespace  = "kube-system"
-  version    = "2.4.1"
-
-  depends_on = [helm_release.aws_load_balancer_controller]
-
-  set = [
-    {
-      name  = "controller.serviceAccount.create"
-      value = "false"
-    },
-    {
-      name  = "controller.serviceAccount.name"
-      value = "efs-csi-controller-sa"
-    },
-    {
-      name  = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = var.efs_csi_driver_role_arn
-    }
-  ]
-}
-
-# ==============================================================================
-# AWS Load Balancer Controller (LBC)
-# This section follows the proven manual install pattern.
-# ==============================================================================
-
-# Step 1: Create the Kubernetes Service Account and annotate it with the IAM Role.
-resource "kubernetes_service_account" "aws_load_balancer_controller" {
-  metadata {
-    name      = "aws-load-balancer-controller"
-    namespace = "kube-system"
-    annotations = {
-      "eks.amazonaws.com/role-arn" = var.aws_load_balancer_controller_irsa_role_arn
-    }
-  }
-}
-
-# Step 2: Install the LBC Helm chart.
-resource "helm_release" "aws_load_balancer_controller" {
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
-  namespace  = "kube-system"
-  version    = "1.8.0" # Pinning to a specific recent version
-
-  # This ensures the SA exists before the chart tries to use it.
-  depends_on = [kubernetes_service_account.aws_load_balancer_controller]
-
-  set = [
-    {
-      name  = "serviceAccount.create"
-      value = "false"
-    },
-    {
-      name  = "serviceAccount.name"
-      value = "aws-load-balancer-controller"
-    },
-    {
-      name  = "clusterName"
-      value = var.cluster_name
-    }
-  ]
-}
-
-# ==============================================================================
-# Ingress and Observability Applications
-# These are installed after the LBC is ready.
-# ==============================================================================
-
-#---------------------------------------------------------------
-# Helm Release: Ingress NGINX Controller
-#---------------------------------------------------------------
-resource "helm_release" "ingress_nginx" {
-  depends_on = [helm_release.aws_load_balancer_controller]
-
-  name       = "ingress-nginx"
-  repository = "https://kubernetes.github.io/ingress-nginx"
-  chart      = "ingress-nginx"
-  namespace  = "ingress-nginx"
-  create_namespace = true
-  version    = "4.10.1"
-
-  values = [
-    yamlencode({
-      controller = {
-        # This tells the AWS LBC to provision a high-performance Network Load Balancer
-        # to feed traffic to the NGINX pods. This is the best-practice setup.
-        service = {
-          type = "LoadBalancer"
-          annotations = {
-            "service.beta.kubernetes.io/aws-load-balancer-type" = "nlb"
-          }
-        }
-      }
-    })
-  ]
-}
-
-#---------------------------------------------------------------
-# Helm Release: Kube Prometheus Stack (Prometheus + Grafana)
-#---------------------------------------------------------------
-resource "helm_release" "kube_prometheus_stack" {
-  depends_on = [helm_release.ingress_nginx]
-
-  name       = "kube-prometheus-stack"
-  repository = "https://prometheus-community.github.io/helm-charts"
-  chart      = "kube-prometheus-stack"
-  namespace  = "monitoring"
-  create_namespace = true
-  version    = "58.1.0"
-  timeout    = 600
-}
-
-#---------------------------------------------------------------
-# Helm Release: Kubecost
-#---------------------------------------------------------------
-resource "helm_release" "kubecost" {
-  depends_on = [helm_release.kube_prometheus_stack]
-
-  name       = "kubecost"
-  repository = "https://kubecost.github.io/cost-analyzer/"
-  chart      = "cost-analyzer"
-  namespace  = "kubecost"
-  create_namespace = true
-  version    = "2.2.2"
-  
-  values = [
-    yamlencode({
-      kubecostProductConfigs = {
-        clusterName = var.cluster_name
-      }
-      # This is critical. It tells Kubecost to use the Prometheus we just installed,
-      # rather than installing its own, preventing conflicts.
-      prometheus = {
-        server = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
-      }
-    })
-  ]
+  depends_on = [kubernetes_annotations.disable_gp2]
 }

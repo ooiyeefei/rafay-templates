@@ -4,44 +4,33 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "cluster_endpoint" {
+  description = "The endpoint for the EKS cluster's API server."
+  type        = string
+}
+
+
 variable "aws_region" {
   description = "The AWS region to deploy the VPC into."
   type        = string
 }
 
+variable "cluster_certificate_authority_data" {
+  description = "The base64 encoded certificate data for the EKS cluster."
+  type        = string
+}
+
 variable "oidc_provider_arn" {
-  description = "The ARN of the OIDC provider for the EKS cluster."
+  description = "The OIDC provider ARN for the EKS cluster."
   type        = string
 }
 
-variable "cluster_oidc_issuer_url" {
-  description = "The OIDC issuer URL for the EKS cluster."
-  type        = string
-}
-
-variable "karpenter_instance_profile_name" {
-  description = "The name of the EC2 instance profile for Karpenter nodes to use."
-  type        = string
-}
-
-variable "efs_csi_driver_role_arn" {
-  description = "ARN of the IAM role to be used by the EFS CSI driver."
+variable "eks_cluster_version" {
+  description = "The Kubernetes version of the EKS cluster."
   type        = string
 }
 
 # --- Tooling Configuration ---
-variable "karpenter_chart_version" {
-  description = "The version of the Karpenter Helm chart to install."
-  type        = string
-  default     = "1.4.0"
-}
-
-variable "kuberay_chart_version" {
-  description = "The version of the KubeRay Operator Helm chart to install."
-  type        = string
-  default     = "1.4.0"
-}
-
 variable "karpenter_instance_category" {
   description = "List of EC2 instance categories for the default Karpenter NodePool."
   type        = list(string)

@@ -1,7 +1,7 @@
 # This file contains the IAM policy document required by the Karpenter controller
 # to manage EC2 instances, launch templates, and other AWS resources.
 
-data "aws_iam_policy_document" "karpenter_controller" {
+data "aws_iam_policy_document" "karpenter_controller_policy" {
   statement {
     sid    = "Karpenter"
     effect = "Allow"
