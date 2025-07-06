@@ -29,11 +29,17 @@ ollama:
     type: "nvidia"
     number: 1
 
-  # Use the old model format that chart v0.29.0 expects.
-  # This is a simple list of strings directly under the 'models' key.
-  %{ if length(ollama_models) > 0 ~}
-  models:
-%{ for model in ollama_models ~}
-    - ${model}
-%{ endfor ~}
-  %{ endif ~}
+lifecycle:
+  postStart:
+    exec:
+      command:
+        - "/bin/sh"
+        - "-c"
+        - >
+          (
+            echo "Lifecycle Hook: Starting background model pulls...";
+            %{ for model in ollama_models ~}
+            ollama pull ${model};
+            %{ endfor ~}
+            echo "Lifecycle Hook: All model pulls initiated."
+          ) &
