@@ -125,8 +125,6 @@ module "data_addons" {
   # It solves the CRD race condition correctly.
   enable_karpenter_resources = true
   karpenter_resources_helm_config = {
-    # --- DEFAULT CPU NODEPOOL ---
-    # This key defines one helm_release.
     "default-cpu" = {
       values = [
         yamlencode({
@@ -136,7 +134,11 @@ module "data_addons" {
           ec2NodeClass = {
             # Use the variable name the chart expects
             karpenterRole = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
-            amiFamily     = "AL2"
+            
+            # USE BOTTLEROCKET as per the ai-on-eks stack.
+            # This is the "magic" value the module is designed to work with.
+            amiFamily = "Bottlerocket"
+            
             subnetSelectorTerms = {
               tags = { "karpenter.sh/discovery" = var.cluster_name }
             }
@@ -145,7 +147,7 @@ module "data_addons" {
             }
           }
 
-          # Use the singular 'nodePool' object the chart expects
+          # The singular 'nodePool' object the chart expects
           nodePool = {
             requirements = [
               { key = "karpenter.k8s.aws/instance-category", operator = "In", values = var.karpenter_instance_category },
@@ -166,9 +168,11 @@ module "data_addons" {
           name = "gpu"
 
           ec2NodeClass = {
-            # It can and should reuse the same IAM role
             karpenterRole = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
-            amiFamily     = "AL2" # Or Bottlerocket if you prefer
+            
+            # USE BOTTLEROCKET for GPUs as well, just like the ai-on-eks stack.
+            amiFamily = "Bottlerocket"
+            
             subnetSelectorTerms = {
               tags = { "karpenter.sh/discovery" = var.cluster_name }
             }
@@ -178,8 +182,7 @@ module "data_addons" {
           }
 
           nodePool = {
-            # The EC2NodeClass created above is implicitly linked by name.
-            # We add a taint to keep general workloads off these expensive nodes.
+            # Add a taint to keep general workloads off these expensive nodes.
             taints = [{
               key    = "nvidia.com/gpu"
               value  = "true"
