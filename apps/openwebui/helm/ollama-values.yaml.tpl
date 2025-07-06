@@ -22,25 +22,21 @@ persistentVolume:
 
 # --- Application Configuration ---
 ollama:
-  # --- THIS IS THE FINAL FIX ---
-  # The 'gpu' key will now always be rendered.
-  # Its 'enabled' sub-key will be dynamically set to true or false.
-  # This prevents the 'nil pointer' error.
+  # --- GPU Block ---
+  # This block is now self-contained and only handles GPU settings.
   gpu:
     enabled: ${ollama_on_gpu}
-    type: "nvidia" # This can be static, it's ignored if enabled is false.
-    
-    # We only set the resource limits if GPU is actually enabled.
-    %{ if ollama_on_gpu ~}
-    number: 1 
-    %{ endif ~}
+    type: "nvidia"
+    # The chart ignores 'number' if 'enabled' is false, so it's safe to include.
+    # The chart also automatically adds the 'resources' limits based on this.
+    number: 1
 
-
-  # This structure for pulling models is correct.
-  %{ if length(ollama_models) > 0 ~}
+  # --- Models Block ---
+  # This block is now correctly at the same level as the 'gpu' block.
+  # We always render the 'pull' key with an empty list if no models are provided.
+  # This is the most robust way to prevent template errors.
   models:
     pull:
 %{ for model in ollama_models ~}
       - ${model}
 %{ endfor ~}
-  %{ endif ~}
