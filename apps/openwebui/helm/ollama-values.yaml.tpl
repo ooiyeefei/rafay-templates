@@ -29,17 +29,9 @@ ollama:
     type: "nvidia"
     number: 1
 
-lifecycle:
-  postStart:
-    exec:
-      command:
-        - "/bin/sh"
-        - "-c"
-        - >
-          (
-            echo "Lifecycle Hook: Starting background model pulls...";
-            %{ for model in ollama_models ~}
-            ollama pull ${model};
-            %{ endfor ~}
-            echo "Lifecycle Hook: All model pulls initiated."
-          ) &
+  %{ if length(ollama_models) > 0 ~}
+  models:
+%{ for model in ollama_models ~}
+    - ${model}
+%{ endfor ~}
+  %{ endif ~}

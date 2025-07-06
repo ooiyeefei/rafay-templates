@@ -39,18 +39,17 @@ tolerations:
 pipelines:
   enabled: false
 
+ollamaUrls:
+%{ if enable_ollama_workload ~}
+  # If internal Ollama is enabled, point to its service.
+  - "http://ollama-server-${namespace}:11434"
+%{ endif ~}
+
+
+# This uses the 'openaiBaseApiUrls' key.
 %{ if external_vllm_endpoint != "" ~}
-# CASE 1: Use the provided external endpoint.
-openaiBaseApiUrls: ["${external_vllm_endpoint}"]
-%{ else ~}
-  %{ if enable_ollama_workload ~}
-# CASE 2: No external endpoint, but internal Ollama is enabled.
-# Point to the correct service name, which is derived from the workload's metadata.name.
-openaiBaseApiUrls: ["http://ollama-server-${namespace}.svc.cluster.local:11434"]
-  %{ else ~}
-# CASE 3: No external or internal endpoint. The UI will have no models.
-openaiBaseApiUrls: []
-  %{ endif ~}
+openaiBaseApiUrls:
+  - "${external_vllm_endpoint}"
 %{ endif ~}
 
 ollama:
