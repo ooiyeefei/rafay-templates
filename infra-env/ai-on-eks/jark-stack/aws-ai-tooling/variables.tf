@@ -29,17 +29,6 @@ variable "efs_csi_driver_role_arn" {
   type        = string
 }
 
-variable "aws_load_balancer_controller_irsa_role_arn" {
-  description = "ARN of the IAM role for the AWS Load Balancer Controller."
-  type        = string
-}
-
-variable "karpenter_irsa_role_arn" {
-  description = "The ARN for the Karpenter controller IAM Role."
-  type        = string
-}
-
-
 # --- Tooling Configuration ---
 variable "karpenter_chart_version" {
   description = "The version of the Karpenter Helm chart to install."

@@ -31,6 +31,25 @@ data "aws_ecrpublic_authorization_token" "token" {
   provider = aws.ecr
 }
 
+data "aws_iam_policy_document" "karpenter_controller_policy" {
+  statement {
+    actions = [
+      "ec2:RunInstances",
+      "ec2:CreateLaunchTemplate",
+      "ec2:DescribeLaunchTemplates",
+      "ec2:DeleteLaunchTemplate",
+      "ec2:DescribeInstances",
+      "ec2:TerminateInstances",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeInstanceTypes",
+      "iam:PassRole",
+      "ssm:GetParameter"
+    ]
+    resources = ["*"]
+  }
+}
+
 #---------------------------------------------------------------
 # IRSA for Karpenter
 #---------------------------------------------------------------

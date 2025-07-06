@@ -1,9 +1,7 @@
 # These values are structured to match the official otwld/ollama Helm chart README
-# AND our specific EKS node configuration. (EKS node taints etc)
+# AND your specific EKS cluster's available StorageClasses.
 
 # --- Scheduling Configuration ---
-# This block is ONLY rendered if 'ollama_on_gpu' is true.
-# These values are structured for the otwld/ollama Helm chart version 0.29.0.
 %{ if ollama_on_gpu ~}
 nodeSelector:
   accelerator: "nvidia"
@@ -17,27 +15,22 @@ tolerations:
 
 
 # --- Persistence Configuration ---
-# This uses the correct 'persistentVolume' key from the README.
 persistentVolume:
   enabled: true
-  storageClass: "gp3"
+  # REMOVED: The storageClass key has been removed.
+  # Kubernetes will now automatically use the default StorageClass on your cluster.
   size: 50Gi
 
 
 # --- Application Configuration ---
 ollama:
-  # This block correctly enables the GPU features within the container.
   gpu:
     enabled: ${ollama_on_gpu}
     type: "nvidia"
     number: 1
-  
-  # --- THIS IS THE CRITICAL FIX ---
-  # Use the old model format that chart v0.29.0 expects.
-  # This should be a simple list of strings.
-  %{ if length(ollama_models) > 0 ~}
+
   models:
+    pull:
 %{ for model in ollama_models ~}
-    - ${model}
+      - ${model}
 %{ endfor ~}
-  %{ endif ~}
