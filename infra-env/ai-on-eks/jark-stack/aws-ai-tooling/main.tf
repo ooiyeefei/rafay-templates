@@ -125,72 +125,55 @@ module "data_addons" {
   # It solves the CRD race condition correctly.
   enable_karpenter_resources = true
   karpenter_resources_helm_config = {
-    "default-cpu" = {
+    # --- CPU NODEPOOL for Ray Head ---
+    "x86-cpu-karpenter" = {
       values = [
         yamlencode({
-          # This name is used for the NodePool and EC2NodeClass Kubernetes objects
           name = "default"
-          
           ec2NodeClass = {
-            # Use the variable name the chart expects
-            karpenterRole = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
-            
-            # USE BOTTLEROCKET as per the ai-on-eks stack.
-            # This is the "magic" value the module is designed to work with.
-            amiFamily = "Bottlerocket"
-            
-            subnetSelectorTerms = {
-              tags = { "karpenter.sh/discovery" = var.cluster_name }
-            }
-            securityGroupSelectorTerms = {
-              tags = { "karpenter.sh/discovery" = var.cluster_name }
-            }
+            karpenterRole              = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
+            amiFamily                  = "Bottlerocket"
+            subnetSelectorTerms        = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
+            securityGroupSelectorTerms = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
           }
-
-          # The singular 'nodePool' object the chart expects
           nodePool = {
+            # This is the critical change. We add labels that the Ray pods require.
+            labels = {
+              type            = "karpenter"
+              NodeGroupType   = "x86-cpu-karpenter" # This now matches the Ray HEAD pod's selector
+            }
             requirements = [
-              { key = "karpenter.k8s.aws/instance-category", operator = "In", values = var.karpenter_instance_category },
-              { key = "karpenter.k8s.aws/instance-generation", operator = "In", values = var.karpenter_instance_generation },
+              { key = "karpenter.k8s.aws/instance-category", operator = "In", values = ["c", "m", "r"] },
               { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
-              { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand", "spot"] }
+              { key = "karpenter.sh/capacity-type", operator = "In", values = ["spot", "on-demand"] }
             ]
           }
         })
       ]
     }
-    # --- GPU NODEPOOL ---
-    # This key defines a second, separate helm_release.
-    "gpu" = {
+    # --- GPU NODEPOOL for Ray Workers ---
+    "g5-gpu-karpenter" = {
       values = [
         yamlencode({
-          # This will create a NodePool named "gpu" and an EC2NodeClass named "gpu"
           name = "gpu"
-
           ec2NodeClass = {
-            karpenterRole = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
-            
-            # USE BOTTLEROCKET for GPUs as well, just like the ai-on-eks stack.
-            amiFamily = "Bottlerocket"
-            
-            subnetSelectorTerms = {
-              tags = { "karpenter.sh/discovery" = var.cluster_name }
-            }
-            securityGroupSelectorTerms = {
-              tags = { "karpenter.sh/discovery" = var.cluster_name }
-            }
+            karpenterRole              = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
+            amiFamily                  = "Bottlerocket"
+            subnetSelectorTerms        = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
+            securityGroupSelectorTerms = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
           }
-
           nodePool = {
-            # Add a taint to keep general workloads off these expensive nodes.
-            taints = [{
-              key    = "nvidia.com/gpu"
-              value  = "true"
-              effect = "NoSchedule"
-            }]
+            # Add labels to the GPU nodes to match the Ray WORKER pod's selector.
+            labels = {
+              type          = "karpenter"
+              NodeGroupType = "g5-gpu-karpenter"
+            }
+            # Add the GPU taint so only pods that need GPUs will be scheduled here.
+            taints = [{ key = "nvidia.com/gpu", value = "true", effect = "NoSchedule" }]
             requirements = [
-              { key = "karpenter.k8s.aws/instance-family", operator = "In", values = var.karpenter_gpus_instance_family },
+              # These requirements match the Ray WORKER pod's needs
               { key = "node.kubernetes.io/instance-type", operator = "In", values = var.karpenter_gpus_instance_types },
+              { key = "karpenter.k8s.aws/instance-family", operator = "In", values = var.karpenter_gpus_instance_family },
               { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
               { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] }
             ]

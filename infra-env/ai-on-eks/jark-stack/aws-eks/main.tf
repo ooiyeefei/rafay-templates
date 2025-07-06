@@ -122,6 +122,11 @@ module "eks" {
         WorkerType    = "ON_DEMAND"
         NodeGroupType = "core"
       }
+      taints = [{
+        key    = "CriticalAddonsOnly"
+        value  = "true"
+        effect = "NO_SCHEDULE"
+      }]
       tags = var.tags
     }
   }
