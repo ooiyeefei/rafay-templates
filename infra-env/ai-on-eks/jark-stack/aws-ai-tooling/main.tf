@@ -256,7 +256,6 @@ resource "helm_release" "ingress_nginx" {
   namespace  = "ingress-nginx"
   create_namespace = true
   version    = "4.10.1"
-  depends_on = [helm_release.aws_load_balancer_controller]
 
   values = [
     yamlencode({
