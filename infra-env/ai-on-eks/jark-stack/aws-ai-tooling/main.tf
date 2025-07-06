@@ -75,14 +75,17 @@ resource "helm_release" "karpenter" {
       name  = "settings.aws.clusterName"
       value = var.cluster_name
     },
-    # THIS IS THE NEW, CRITICAL VALUE for the pod's startup arguments
-    {
-      name  = "cluster-name"
-      value = var.cluster_name
-    },
     {
       name  = "settings.aws.defaultInstanceProfile"
       value = var.karpenter_instance_profile_name
+    },
+    {
+      name  = "extraEnv[0].name"
+      value = "KARPENTER_CLUSTER_NAME"
+    },
+    {
+      name  = "extraEnv[0].value"
+      value = var.cluster_name
     }
   ]
 }
