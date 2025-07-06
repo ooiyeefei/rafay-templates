@@ -37,7 +37,7 @@ data "aws_ecrpublic_authorization_token" "token" {
 # Policy attachment to use the role ARN from the variable
 
 resource "aws_iam_role_policy_attachment" "karpenter_controller" {
-  role       = var.karpenter_irsa_role_arn
+  role       = split("/", var.karpenter_irsa_role_arn)[1]
   policy_arn = aws_iam_policy.karpenter_controller.arn
 }
 
@@ -63,6 +63,7 @@ resource "helm_release" "karpenter" {
   repository_password = data.aws_ecrpublic_authorization_token.token.password
 
   wait = true
+  depends_on = [helm_release.aws_load_balancer_controller]
 
   set = [
     {
@@ -90,17 +91,24 @@ resource "helm_release" "volcano" {
   namespace  = "volcano-system"
   create_namespace = true
   version    = "1.12.1"
+
+  depends_on = [helm_release.aws_load_balancer_controller]
 }
 
 # This operator allows us to create RayClusters declaratively.
 resource "helm_release" "kuberay_operator" {
-  depends_on       = [helm_release.karpenter]
+  depends_on = [
+    helm_release.karpenter,
+    helm_release.aws_load_balancer_controller
+  ]
   namespace        = "ray-system"
   create_namespace = true
   name             = "kuberay-operator"
   repository       = "https://ray-project.github.io/kuberay-helm/"
   chart            = "kuberay-operator"
   version          = var.kuberay_chart_version
+
+  
 
   set = [
     {
@@ -169,6 +177,8 @@ resource "helm_release" "aws_efs_csi_driver" {
   chart      = "aws-efs-csi-driver"
   namespace  = "kube-system"
   version    = "2.4.1"
+
+  depends_on = [helm_release.aws_load_balancer_controller]
 
   set = [
     {
@@ -246,6 +256,7 @@ resource "helm_release" "ingress_nginx" {
   namespace  = "ingress-nginx"
   create_namespace = true
   version    = "4.10.1"
+  depends_on = [helm_release.aws_load_balancer_controller]
 
   values = [
     yamlencode({
