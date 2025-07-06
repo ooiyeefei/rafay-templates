@@ -42,18 +42,56 @@ module "eks_blueprints_addons" {
 
   # --- Add-on Configurations ---
   enable_aws_load_balancer_controller = true
-  enable_ingress_nginx                = true
-  enable_aws_efs_csi_driver           = true # Assuming you want EFS
+  enable_aws_efs_csi_driver           = true
 
-  # Kube-Prometheus-Stack for metrics and Grafana
-  enable_kube_prometheus_stack = true
-  kube_prometheus_stack = {
-    # This minimal config avoids needing extra files and installs a basic stack
+  # --- NGINX CONFIGURATION ---
+  enable_ingress_nginx = true
+  ingress_nginx = {
     values = [
       yamlencode({
+        controller = {
+          # This gives the NGINX controller pods the toleration they need
+          tolerations = [{
+            key      = "CriticalAddonsOnly"
+            operator = "Exists"
+            effect   = "NoSchedule"
+          }]
+        }
+      })
+    ]
+  }
+
+  # --- KUBE-PROMETHEUS-STACK CONFIGURATION ---
+  enable_kube_prometheus_stack = true
+  kube_prometheus_stack = {
+    values = [
+      yamlencode({
+        # Give tolerations to all the key components of the stack
         grafana = {
-          # You can add persistence, etc. here if needed
-          adminPassword = "prom-operator" # Change this in a real environment
+          adminPassword = "prom-operator"
+          tolerations = [{
+            key      = "CriticalAddonsOnly"
+            operator = "Exists"
+            effect   = "NoSchedule"
+          }]
+        }
+        prometheus = {
+          prometheusSpec = {
+            tolerations = [{
+              key      = "CriticalAddonsOnly"
+              operator = "Exists"
+              effect   = "NoSchedule"
+            }]
+          }
+        }
+        alertmanager = {
+          alertmanagerSpec = {
+            tolerations = [{
+              key      = "CriticalAddonsOnly"
+              operator = "Exists"
+              effect   = "NoSchedule"
+            }]
+          }
         }
       })
     ]
