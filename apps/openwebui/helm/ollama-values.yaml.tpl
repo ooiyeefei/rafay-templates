@@ -29,9 +29,20 @@ ollama:
     type: "nvidia"
     number: 1
 
-  %{ if length(ollama_models) > 0 ~}
-  models:
-%{ for model in ollama_models ~}
-    - ${model}
-%{ endfor ~}
-  %{ endif ~}
+initContainers:
+- name: "pull-models"
+  image: "ollama/ollama:0.1.38" # Use the same image version
+  # Mount the persistent volume to the same path
+  volumeMounts:
+    - name: ollama-data
+      mountPath: /root/.ollama
+  # The command to run
+  command:
+    - "/bin/sh"
+    - "-c"
+    - |
+      echo "Init Container: Starting model pulls..."
+      %{ for model in ollama_models ~}
+      ollama pull ${model}
+      %{ endfor ~}
+      echo "Init Container: All model pulls complete."

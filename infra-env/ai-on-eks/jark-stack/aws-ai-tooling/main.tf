@@ -110,8 +110,12 @@ module "data_addons" {
     # This points Kubecost to the Prometheus installed by the *other* blueprint module
     values = [
       yamlencode({
+        # This block tells Kubecost to use an external Prometheus and to disable its own.
         prometheus = {
-          server = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+          enabled = false # Disables the entire embedded Prometheus sub-chart
+          external = {
+            server = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+          }
         }
       })
     ]
@@ -132,12 +136,12 @@ module "data_addons" {
             name      = "default" # The name of the EC2NodeClass object
             amiFamily = "AL2"
             role      = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
-            subnetSelectorTerms = [{
+            subnetSelectorTerms = {
               tags = { "karpenter.sh/discovery" = var.cluster_name }
-            }]
-            securityGroupSelectorTerms = [{
+            }
+            securityGroupSelectorTerms = {
               tags = { "karpenter.sh/discovery" = var.cluster_name }
-            }]
+            }
           }
 
           # Define the default NodePool at the top level
