@@ -77,7 +77,7 @@ resource "helm_release" "karpenter" {
     },
     # THIS IS THE NEW, CRITICAL VALUE for the pod's startup arguments
     {
-      name  = "clusterName"
+      name  = "cluster-name"
       value = var.cluster_name
     },
     {
