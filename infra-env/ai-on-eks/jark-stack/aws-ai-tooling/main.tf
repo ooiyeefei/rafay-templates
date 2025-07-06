@@ -137,10 +137,9 @@ module "data_addons" {
             securityGroupSelectorTerms = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
           }
           nodePool = {
-            # This is the critical change. We add labels that the Ray pods require.
             labels = {
               type            = "karpenter"
-              NodeGroupType   = "x86-cpu-karpenter" # This now matches the Ray HEAD pod's selector
+              NodeGroupType   = "x86-cpu-karpenter" # Matches the Ray HEAD pod's selector
             }
             requirements = [
               { key = "karpenter.k8s.aws/instance-category", operator = "In", values = ["c", "m", "r"] },
@@ -163,15 +162,12 @@ module "data_addons" {
             securityGroupSelectorTerms = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
           }
           nodePool = {
-            # Add labels to the GPU nodes to match the Ray WORKER pod's selector.
             labels = {
               type          = "karpenter"
-              NodeGroupType = "g5-gpu-karpenter"
+              NodeGroupType = "g5-gpu-karpenter" # Matches the Ray WORKER pod's selector
             }
-            # Add the GPU taint so only pods that need GPUs will be scheduled here.
             taints = [{ key = "nvidia.com/gpu", value = "true", effect = "NoSchedule" }]
             requirements = [
-              # These requirements match the Ray WORKER pod's needs
               { key = "node.kubernetes.io/instance-type", operator = "In", values = var.karpenter_gpus_instance_types },
               { key = "karpenter.k8s.aws/instance-family", operator = "In", values = var.karpenter_gpus_instance_family },
               { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
