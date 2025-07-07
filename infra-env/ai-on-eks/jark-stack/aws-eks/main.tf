@@ -129,6 +129,23 @@ module "eks" {
       }]
       tags = var.tags
     }
+    # UNTAINTED group for general-purpose pods like Rafay agents or external workload.
+    general_purpose_group = {
+      name           = "general-purpose-group"
+      description    = "Node group for general workloads and third-party agents"
+      subnet_ids     = var.private_subnet_ids
+      ami_type       = "AL2023_x86_64_STANDARD"
+      instance_types = ["t3.xlarge"]
+      min_size       = 1
+      max_size       = 2
+      desired_size   = 1
+      labels = {
+        WorkerType    = "ON_DEMAND"
+        NodeGroupType = "general-purpose"
+      }
+      
+      tags = var.tags
+    }
   }
 
   tags = var.tags

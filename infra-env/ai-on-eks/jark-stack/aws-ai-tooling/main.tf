@@ -42,6 +42,19 @@ module "eks_blueprints_addons" {
 
   # --- Add-on Configurations ---
   enable_aws_load_balancer_controller = true
+  aws_load_balancer_controller = {
+    values = [
+      yamlencode({
+        # This gives the LBC pods the toleration they need to run on the core nodes
+        tolerations = [{
+          key      = "CriticalAddonsOnly"
+          operator = "Exists"
+          effect   = "NoSchedule"
+        }]
+      })
+    ]
+  }
+
   enable_aws_efs_csi_driver           = true
 
   # --- NGINX CONFIGURATION ---
@@ -49,13 +62,14 @@ module "eks_blueprints_addons" {
   ingress_nginx = {
     values = [
       yamlencode({
-        controller = {
-          # This gives the NGINX controller pods the toleration they need
-          tolerations = [{
-            key      = "CriticalAddonsOnly"
-            operator = "Exists"
-            effect   = "NoSchedule"
-          }]
+        # Add tolerations for BOTH the controller and the admission job webhook
+        controller: {
+          tolerations: [{ key: "CriticalAddonsOnly", operator: "Exists", effect: "NoSchedule" }]
+        },
+        admissionWebhooks: {
+          patch: {
+            tolerations: [{ key: "CriticalAddonsOnly", operator: "Exists", effect: "NoSchedule" }]
+          }
         }
       })
     ]
