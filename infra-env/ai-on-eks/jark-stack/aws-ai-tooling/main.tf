@@ -191,6 +191,12 @@ module "data_addons" {
         securityGroupSelectorTerms:
           tags:
             Name: ${var.cluster_name}-node
+        blockDeviceMappings:
+          - deviceName: /dev/xvda
+            ebs:
+              volumeSize: 100Gi
+              volumeType: gp3
+              encrypted: true
       nodePool:
         labels:
           - type: karpenter
@@ -229,6 +235,12 @@ module "data_addons" {
         securityGroupSelectorTerms:
           tags:
             Name: ${var.cluster_name}-node
+        blockDeviceMappings:
+          - deviceName: /dev/xvda
+            ebs:
+              volumeSize: 100Gi
+              volumeType: gp3
+              encrypted: true
       nodePool:
         labels:
           - type: karpenter
