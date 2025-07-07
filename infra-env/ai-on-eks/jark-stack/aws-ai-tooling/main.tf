@@ -294,3 +294,57 @@ resource "kubernetes_storage_class" "default_gp3" {
   }
   depends_on = [kubernetes_annotations.disable_gp2]
 }
+
+# -----------------------------------------------------------------------------
+# AWS-AUTH CONFIGMAP PATCH FOR KARPENTER
+# -----------------------------------------------------------------------------
+# The EKS module automatically maps the roles for its managed node groups.
+# However, it doesn't know about the Karpenter node role, which is created
+# here in the addons module. We patch the existing ConfigMap to add the
+# Karpenter node role, authorizing nodes it creates to join the cluster.
+
+# First, we need a data source to read the current aws-auth ConfigMap
+data "kubernetes_config_map" "aws_auth" {
+  provider = kubernetes
+  metadata {
+    name      = "aws-auth"
+    namespace = "kube-system"
+  }
+  depends_on = [module.eks_blueprints_addons]
+}
+
+# Now, we apply a patch to add our new role.
+resource "kubernetes_config_map_v1_patch" "karpenter_node_role_auth" {
+  provider = kubernetes
+  metadata {
+    name      = "aws-auth"
+    namespace = "kube-system"
+  }
+
+  # The patch is applied as a strategic merge patch. We are modifying the
+  # 'mapRoles' key within the 'data' field.
+  patch = jsonencode({
+    data = {
+      # This is the tricky part: 'mapRoles' is a string containing YAML.
+      # We take the existing string from the data source and append our
+      # new role, which we also format as a YAML string.
+      mapRoles = "${data.kubernetes_config_map.aws_auth.data.mapRoles}${yamlencode([
+        {
+          rolearn  = module.eks_blueprints_addons.karpenter.node_iam_role_arn
+          username = "system:node:{{EC2PrivateDNSName}}"
+          groups   = [
+            "system:bootstrappers",
+            "system:nodes",
+          ]
+        }
+      ])}"
+    }
+  })
+
+  # This ensures the patch only runs after the ConfigMap exists and the
+  # Karpenter role has been created.
+  depends_on = [
+    data.kubernetes_config_map.aws_auth,
+    module.eks_blueprints_addons
+  ]
+}
