@@ -192,9 +192,16 @@ module "data_addons" {
           tags:
             Name: ${var.cluster_name}-node
         blockDeviceMappings:
+          # Root device
           - deviceName: /dev/xvda
             ebs:
               volumeSize: 100Gi
+              volumeType: gp3
+              encrypted: true
+          # Data device: Container resources such as images and logs
+          - deviceName: /dev/xvdb
+            ebs:
+              volumeSize: 300Gi
               volumeType: gp3
               encrypted: true
       nodePool:
@@ -236,9 +243,16 @@ module "data_addons" {
           tags:
             Name: ${var.cluster_name}-node
         blockDeviceMappings:
+          # Root device
           - deviceName: /dev/xvda
             ebs:
               volumeSize: 100Gi
+              volumeType: gp3
+              encrypted: true
+          # Data device: Container resources such as images and logs
+          - deviceName: /dev/xvdb
+            ebs:
+              volumeSize: 300Gi
               volumeType: gp3
               encrypted: true
       nodePool:
