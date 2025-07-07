@@ -190,7 +190,7 @@ module "data_addons" {
             karpenter.sh/discovery: ${var.cluster_name}
         securityGroupSelectorTerms:
           tags:
-            karpenter.sh/discovery: ${var.cluster_name}
+            Name: ${var.cluster_name}-node
       nodePool:
         labels:
           - type: karpenter
@@ -228,7 +228,7 @@ module "data_addons" {
             karpenter.sh/discovery: ${var.cluster_name}
         securityGroupSelectorTerms:
           tags:
-            karpenter.sh/discovery: ${var.cluster_name}
+            Name: ${var.cluster_name}-node
       nodePool:
         labels:
           - type: karpenter
