@@ -342,8 +342,7 @@ resource "kubernetes_config_map_v1_data" "aws_auth" {
       local.karpenter_node_role_map
     )))
 
-    # We must also include the mapUsers key, even if it's empty, to avoid drift.
-    "mapUsers" = data.kubernetes_config_map_v1.aws_auth.data["mapUsers"]
+    "mapUsers" = lookup(data.kubernetes_config_map_v1.aws_auth.data, "mapUsers", "[]")
   }
 
   # This ensures we don't accidentally delete the ConfigMap.
