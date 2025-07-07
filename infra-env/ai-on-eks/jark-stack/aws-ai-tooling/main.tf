@@ -296,15 +296,27 @@ resource "kubernetes_storage_class" "default_gp3" {
 }
 
 # -----------------------------------------------------------------------------
-# AWS-AUTH CONFIGMAP PATCH FOR KARPENTER
+# AWS-AUTH CONFIGMAP DATA MANAGEMENT FOR KARPENTER
 # -----------------------------------------------------------------------------
-# The EKS module automatically maps the roles for its managed node groups.
-# However, it doesn't know about the Karpenter node role, which is created
-# here in the addons module. We patch the existing ConfigMap to add the
-# Karpenter node role, authorizing nodes it creates to join the cluster.
+# This is the correct, idempotent method for adding the Karpenter node role
+# to the aws-auth ConfigMap when it's managed by a separate EKS stack.
 
-# First, we need a data source to read the current aws-auth ConfigMap
-data "kubernetes_config_map" "aws_auth" {
+# 1. A local variable to define the new role mapping we want to add.
+locals {
+  karpenter_node_role_map = [
+    {
+      rolearn  = module.eks_blueprints_addons.karpenter.node_iam_role_arn
+      username = "system:node:{{EC2PrivateDNSName}}"
+      groups   = [
+        "system:bootstrappers",
+        "system:nodes",
+      ]
+    }
+  ]
+}
+
+# 2. A data source to read the current aws-auth ConfigMap managed by the EKS module.
+data "kubernetes_config_map_v1" "aws_auth" {
   provider = kubernetes
   metadata {
     name      = "aws-auth"
@@ -313,38 +325,29 @@ data "kubernetes_config_map" "aws_auth" {
   depends_on = [module.eks_blueprints_addons]
 }
 
-# Now, we apply a patch to add our new role.
-resource "kubernetes_config_map_v1_patch" "karpenter_node_role_auth" {
+# 3. The resource that takes ownership of ONLY the 'data' field of the ConfigMap.
+resource "kubernetes_config_map_v1_data" "aws_auth" {
   provider = kubernetes
+  force    = true # This is required to let our resource overwrite the 'data' field.
+
   metadata {
     name      = "aws-auth"
     namespace = "kube-system"
   }
 
-  # The patch is applied as a strategic merge patch. We are modifying the
-  # 'mapRoles' key within the 'data' field.
-  patch = jsonencode({
-    data = {
-      # This is the tricky part: 'mapRoles' is a string containing YAML.
-      # We take the existing string from the data source and append our
-      # new role, which we also format as a YAML string.
-      mapRoles = "${data.kubernetes_config_map.aws_auth.data.mapRoles}${yamlencode([
-        {
-          rolearn  = module.eks_blueprints_addons.karpenter.node_iam_role_arn
-          username = "system:node:{{EC2PrivateDNSName}}"
-          groups   = [
-            "system:bootstrappers",
-            "system:nodes",
-          ]
-        }
-      ])}"
-    }
-  })
+  data = {
+    # This logic merges the existing roles with our new Karpenter role idempotently.
+    "mapRoles" = yamlencode(distinct(concat(
+      yamldecode(data.kubernetes_config_map_v1.aws_auth.data["mapRoles"]),
+      local.karpenter_node_role_map
+    )))
 
-  # This ensures the patch only runs after the ConfigMap exists and the
-  # Karpenter role has been created.
-  depends_on = [
-    data.kubernetes_config_map.aws_auth,
-    module.eks_blueprints_addons
-  ]
+    # We must also include the mapUsers key, even if it's empty, to avoid drift.
+    "mapUsers" = data.kubernetes_config_map_v1.aws_auth.data["mapUsers"]
+  }
+
+  # This ensures we don't accidentally delete the ConfigMap.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
