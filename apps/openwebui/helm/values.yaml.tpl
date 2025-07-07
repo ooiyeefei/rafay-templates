@@ -41,22 +41,23 @@ pipelines:
 
 %{ if external_vllm_endpoint != "" ~}
 # CASE 1: External endpoint is provided.
-# We populate 'openaiBaseApiUrls' and leave 'ollamaUrls' empty.
+# We populate 'openaiBaseApiUrls' and ensure 'ollamaUrls' is empty.
 openaiBaseApiUrls:
   - "${external_vllm_endpoint}"
 ollamaUrls: []
-
-%{ elseif enable_ollama_workload ~}
+%{ else ~}
+  # No external endpoint, so check if internal Ollama is enabled.
+  %{ if enable_ollama_workload ~}
 # CASE 2: Internal Ollama is enabled.
-# We populate 'ollamaUrls' with the internal service URL and leave 'openaiBaseApiUrls' empty.
+# We populate 'ollamaUrls' with the internal FQDN and ensure 'openaiBaseApiUrls' is empty.
 openaiBaseApiUrls: []
 ollamaUrls:
   - "http://ollama-server-${namespace}.svc.cluster.local:11434"
-
-%{ else ~}
-# CASE 3: No external or internal endpoint. Both are empty.
+  %{ else ~}
+# CASE 3: No external or internal endpoint. Both must be empty.
 openaiBaseApiUrls: []
 ollamaUrls: []
+  %{ endif ~}
 %{ endif ~}
 
 # "http://ollama-server-${namespace}:11434"
