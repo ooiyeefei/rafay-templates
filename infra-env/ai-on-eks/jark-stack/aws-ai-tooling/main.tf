@@ -243,7 +243,7 @@ module "data_addons" {
             values: ["g5", "g4dn"]
           - key: "node.kubernetes.io/instance-type"
             operator: In
-            values: ["g4dn.xlarge", "g4dn.2xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge"]
+            values: ["g4dn.xlarge", "g4dn.2xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge"]
           - key: "kubernetes.io/arch"
             operator: In
             values: ["amd64"]
