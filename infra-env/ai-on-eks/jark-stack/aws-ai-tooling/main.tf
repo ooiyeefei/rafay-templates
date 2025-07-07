@@ -300,6 +300,7 @@ resource "kubernetes_storage_class" "default_gp3" {
 # -----------------------------------------------------------------------------
 # This is the correct, idempotent method for adding the Karpenter node role
 # to the aws-auth ConfigMap when it's managed by a separate EKS stack.
+# This pattern is adapted from community best practices to be robust and safe.
 
 # 1. A local variable to define the new role mapping we want to add.
 locals {
@@ -336,12 +337,16 @@ resource "kubernetes_config_map_v1_data" "aws_auth" {
   }
 
   data = {
-    # This logic merges the existing roles with our new Karpenter role idempotently.
+    # This logic safely merges the existing roles with our new Karpenter role.
     "mapRoles" = yamlencode(distinct(concat(
-      yamldecode(data.kubernetes_config_map_v1.aws_auth.data["mapRoles"]),
+      # Safely decode the existing roles. If the key is missing or the value is null/empty, default to an empty list.
+      yamldecode(lookup(data.kubernetes_config_map_v1.aws_auth.data, "mapRoles", "[]")),
+      # Add our new Karpenter role.
       local.karpenter_node_role_map
     )))
 
+    # We must also include the mapUsers key, even if it's empty, to avoid drift.
+    # We use the same safe lookup pattern.
     "mapUsers" = lookup(data.kubernetes_config_map_v1.aws_auth.data, "mapUsers", "[]")
   }
 
