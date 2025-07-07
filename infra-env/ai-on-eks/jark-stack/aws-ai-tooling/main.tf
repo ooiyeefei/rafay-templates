@@ -186,11 +186,11 @@ module "data_addons" {
         amiFamily: Bottlerocket
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
-          - tags:
-              karpenter.sh/discovery: ${var.cluster_name}
+          tags:
+            karpenter.sh/discovery: ${var.cluster_name}
         securityGroupSelectorTerms:
-          - tags:
-              karpenter.sh/discovery: ${var.cluster_name}
+          tags:
+            karpenter.sh/discovery: ${var.cluster_name}
       nodePool:
         labels:
           type: karpenter
@@ -224,11 +224,11 @@ module "data_addons" {
         amiFamily: Bottlerocket
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
-          - tags:
-              karpenter.sh/discovery: ${var.cluster_name}
+          tags:
+            karpenter.sh/discovery: ${var.cluster_name}
         securityGroupSelectorTerms:
-          - tags:
-              karpenter.sh/discovery: ${var.cluster_name}
+          tags:
+            karpenter.sh/discovery: ${var.cluster_name}
       nodePool:
         labels:
           type: karpenter
@@ -258,7 +258,7 @@ module "data_addons" {
       ]
     }
   }
-
+  
   depends_on = [module.eks_blueprints_addons]
 }
 
