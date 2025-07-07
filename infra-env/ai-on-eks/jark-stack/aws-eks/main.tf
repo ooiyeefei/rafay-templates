@@ -87,6 +87,14 @@ module "eks" {
       to_port                       = 0
       type                          = "ingress"
       source_cluster_security_group = true
+    },
+    ingress_self_all = {
+      description = "Node to node all traffic"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      type        = "ingress"
+      self        = true # This tells the SG to allow traffic from itself
     }
   }
 
