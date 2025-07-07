@@ -193,8 +193,8 @@ module "data_addons" {
             karpenter.sh/discovery: ${var.cluster_name}
       nodePool:
         labels:
-          type: karpenter
-          NodeGroupType: x86-cpu-karpenter
+          - type: karpenter
+          - NodeGroupType: x86-cpu-karpenter
         requirements:
           - key: "karpenter.k8s.aws/instance-category"
             operator: In
@@ -231,8 +231,8 @@ module "data_addons" {
             karpenter.sh/discovery: ${var.cluster_name}
       nodePool:
         labels:
-          type: karpenter
-          NodeGroupType: g5-gpu-karpenter
+          - type: karpenter
+          - NodeGroupType: g5-gpu-karpenter
         taints:
           - key: nvidia.com/gpu
             value: "true"
