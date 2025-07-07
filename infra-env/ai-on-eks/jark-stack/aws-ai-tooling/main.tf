@@ -177,56 +177,84 @@ module "data_addons" {
   # It solves the CRD race condition correctly.
   enable_karpenter_resources = true
   karpenter_resources_helm_config = {
-    # --- CPU NODEPOOL for Ray Head ---
-    "x86-cpu-karpenter" = {
+    x86-cpu-karpenter = {
       values = [
-        yamlencode({
-          name = "default"
-          ec2NodeClass = {
-            karpenterRole              = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
-            amiFamily                  = "Bottlerocket"
-            subnetSelectorTerms        = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
-            securityGroupSelectorTerms = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
-          }
-          nodePool = {
-            labels = {
-              type            = "karpenter"
-              NodeGroupType   = "x86-cpu-karpenter" # Matches the Ray HEAD pod's selector
-            }
-            requirements = [
-              { key = "karpenter.k8s.aws/instance-category", operator = "In", values = ["c", "m", "r"] },
-              { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
-              { key = "karpenter.sh/capacity-type", operator = "In", values = ["spot", "on-demand"] }
-            ]
-          }
-        })
+        <<-EOT
+      name: default
+      clusterName: ${var.cluster_name}
+      ec2NodeClass:
+        amiFamily: Bottlerocket
+        karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
+        subnetSelectorTerms:
+          - tags:
+              karpenter.sh/discovery: ${var.cluster_name}
+        securityGroupSelectorTerms:
+          - tags:
+              karpenter.sh/discovery: ${var.cluster_name}
+      nodePool:
+        labels:
+          type: karpenter
+          NodeGroupType: x86-cpu-karpenter
+        requirements:
+          - key: "karpenter.k8s.aws/instance-category"
+            operator: In
+            values: ["c", "m", "r"]
+          - key: "karpenter.k8s.aws/instance-generation"
+            operator: Gt
+            values: ["4"]
+          - key: "kubernetes.io/arch"
+            operator: In
+            values: ["amd64"]
+          - key: "karpenter.sh/capacity-type"
+            operator: In
+            values: ["spot", "on-demand"]
+        limits:
+          cpu: 1000
+        disruption:
+          consolidationPolicy: WhenEmpty
+      EOT
       ]
     }
-    # --- GPU NODEPOOL for Ray Workers ---
-    "g5-gpu-karpenter" = {
+    g5-gpu-karpenter = {
       values = [
-        yamlencode({
-          name = "gpu"
-          ec2NodeClass = {
-            karpenterRole              = split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]
-            amiFamily                  = "Bottlerocket"
-            subnetSelectorTerms        = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
-            securityGroupSelectorTerms = { tags = { "karpenter.sh/discovery" = var.cluster_name } }
-          }
-          nodePool = {
-            labels = {
-              type          = "karpenter"
-              NodeGroupType = "g5-gpu-karpenter" # Matches the Ray WORKER pod's selector
-            }
-            taints = [{ key = "nvidia.com/gpu", value = "true", effect = "NoSchedule" }]
-            requirements = [
-              { key = "node.kubernetes.io/instance-type", operator = "In", values = var.karpenter_gpus_instance_types },
-              { key = "karpenter.k8s.aws/instance-family", operator = "In", values = var.karpenter_gpus_instance_family },
-              { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
-              { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] }
-            ]
-          }
-        })
+        <<-EOT
+      name: gpu
+      clusterName: ${var.cluster_name}
+      ec2NodeClass:
+        amiFamily: Bottlerocket
+        karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
+        subnetSelectorTerms:
+          - tags:
+              karpenter.sh/discovery: ${var.cluster_name}
+        securityGroupSelectorTerms:
+          - tags:
+              karpenter.sh/discovery: ${var.cluster_name}
+      nodePool:
+        labels:
+          type: karpenter
+          NodeGroupType: g5-gpu-karpenter
+        taints:
+          - key: nvidia.com/gpu
+            value: "true"
+            effect: "NoSchedule"
+        requirements:
+          - key: "karpenter.k8s.aws/instance-family"
+            operator: In
+            values: ["g5"]
+          - key: "node.kubernetes.io/instance-type"
+            operator: In
+            values: ["g5.xlarge", "g5.2xlarge"]
+          - key: "kubernetes.io/arch"
+            operator: In
+            values: ["amd64"]
+          - key: "karpenter.sh/capacity-type"
+            operator: In
+            values: ["on-demand"]
+        limits:
+          cpu: 1000
+        disruption:
+          consolidationPolicy: WhenEmpty
+      EOT
       ]
     }
   }
