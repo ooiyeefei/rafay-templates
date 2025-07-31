@@ -299,7 +299,7 @@ resource "kubernetes_namespace_v1" "gpu_operator" {
 resource "helm_release" "gpu_operator" {
   name       = "gpu-operator"
   namespace  = "gpu-operator"
-  repository = "https://nvidia.github.io/helm-charts"
+  repository = "https://helm.ngc.nvidia.com/nvidia"
   chart      = "gpu-operator"
   version    = "24.3.0" # Use a stable version that is compatible with your cluster version
 
