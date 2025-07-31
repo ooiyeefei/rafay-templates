@@ -173,8 +173,6 @@ module "data_addons" {
     ]
   }
 
-  # This is the "Easy Button" for creating Karpenter's NodePool and EC2NodeClass.
-  # It solves the CRD race condition correctly.
   enable_karpenter_resources = true
   karpenter_resources_helm_config = {
     x86-cpu-karpenter = {
@@ -184,8 +182,6 @@ module "data_addons" {
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
-        amiSelectorTerms:
-          - name: "*bottlerocket-aws-*-nvidia*"
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
           tags:
@@ -238,8 +234,7 @@ module "data_addons" {
       ec2NodeClass:
         amiFamily: Bottlerocket
         amiSelectorTerms:
-          - tags:
-              karpenter.sh/gpu-enabled: "true"
+          - name: "*bottlerocket-aws-*-nvidia*"
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
           tags:
