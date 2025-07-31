@@ -231,7 +231,7 @@ module "data_addons" {
     g5-gpu-karpenter = {
       values = [
         <<-EOT
-      name: gpu
+      name: g5-gpu-karpenter
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
