@@ -235,6 +235,9 @@ module "data_addons" {
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
+        amiSelectorTerms:
+          - tags:
+              karpenter.sh/gpu-enabled: "true"
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
           tags:
