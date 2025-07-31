@@ -288,6 +288,29 @@ module "data_addons" {
   depends_on = [module.eks_blueprints_addons]
 }
 
+# A dedicated namespace for the GPU Operator
+resource "kubernetes_namespace_v1" "gpu_operator" {
+  metadata {
+    name = "gpu-operator"
+  }
+}
+
+# Install the NVIDIA GPU Operator via Helm
+resource "helm_release" "gpu_operator" {
+  name       = "gpu-operator"
+  namespace  = "gpu-operator"
+  repository = "https://nvidia.github.io/helm-charts"
+  chart      = "gpu-operator"
+  version    = "24.3.0" # Use a stable version that is compatible with your cluster version
+
+  # Ensure the operator is installed after the core EKS add-ons
+  # This prevents resource conflicts during the initial cluster setup
+  depends_on = [
+    module.eks_blueprints_addons,
+    kubernetes_namespace_v1.gpu_operator
+  ]
+}
+
 # -----------------------------------------------------------------------------
 # FOUNDATIONAL STORAGE CONFIGURATION (Best Practice)
 # These are still good to manage manually for full control.
