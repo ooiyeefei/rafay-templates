@@ -25,6 +25,10 @@ data "aws_ecrpublic_authorization_token" "token" {
   provider = aws.ecr
 }
 
+data "aws_ssm_parameter" "bottlerocket_ami_nvidia" {
+  name = "/aws/service/bottlerocket/aws-k8s-1.28-nvidia/x86_64/latest/image_id"
+}
+
 # -----------------------------------------------------------------------------
 # FOUNDATIONAL ADD-ONS (from EKS Blueprints)
 # This module installs core services like networking, scheduling, and observability.
@@ -232,7 +236,7 @@ module "data_addons" {
       ec2NodeClass:
         amiFamily: Bottlerocket
         amiSelectorTerms:
-          - name: "*bottlerocket-aws-*-nvidia*"
+          ami-id: ${data.aws_ssm_parameter.bottlerocket_ami_nvidia.value}
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
           tags:
