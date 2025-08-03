@@ -235,7 +235,7 @@ module "data_addons" {
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
-        amiSelectorTerms:
+        amiSelector:
           ami-id: ${data.aws_ssm_parameter.bottlerocket_ami_nvidia.value}
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
