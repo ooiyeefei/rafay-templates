@@ -257,6 +257,7 @@ module "data_addons" {
         labels:
           - type: karpenter
           - NodeGroupType: g5-gpu-karpenter
+          - accelerator: nvidia
         taints:
           - key: nvidia.com/gpu
             value: "true"
