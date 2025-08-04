@@ -25,10 +25,6 @@ data "aws_ecrpublic_authorization_token" "token" {
   provider = aws.ecr
 }
 
-data "aws_ssm_parameter" "bottlerocket_ami_nvidia" {
-  name = "/aws/service/bottlerocket/aws-k8s-1.28-nvidia/x86_64/latest/image_id"
-}
-
 # -----------------------------------------------------------------------------
 # FOUNDATIONAL ADD-ONS (from EKS Blueprints)
 # This module installs core services like networking, scheduling, and observability.
@@ -235,8 +231,8 @@ module "data_addons" {
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
-        amiSelector:
-          ami-id: ${data.aws_ssm_parameter.bottlerocket_ami_nvidia.value}
+        amiSelectorTerms:
+          - alias: bottlerocket@latest
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
           tags:
@@ -264,7 +260,7 @@ module "data_addons" {
           - accelerator: nvidia
         taints:
           - key: nvidia.com/gpu
-            value: "true"
+            value: "Exists"
             effect: "NoSchedule"
         requirements:
           - key: "karpenter.k8s.aws/instance-family"
