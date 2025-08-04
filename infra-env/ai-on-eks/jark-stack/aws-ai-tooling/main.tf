@@ -265,10 +265,10 @@ module "data_addons" {
         requirements:
           - key: "karpenter.k8s.aws/instance-family"
             operator: In
-            values: ["g5", "g4dn"]
+            values: ["g5"]
           - key: "node.kubernetes.io/instance-type"
             operator: In
-            values: ["g4dn.xlarge", "g4dn.2xlarge", "g4dn.4xlarge", "g4dn.8xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge"]
+            values: ["g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge"]
           - key: "kubernetes.io/arch"
             operator: In
             values: ["amd64"]
