@@ -286,49 +286,6 @@ module "data_addons" {
 }
 
 # -----------------------------------------------------------------------------
-# NVIDIA DEVICE PLUGIN
-# This deploys the NVIDIA device plugin via Helm to enable GPU scheduling.
-# -----------------------------------------------------------------------------
-###
-resource "kubernetes_namespace" "nvidia_device_plugin" {
-  metadata {
-    name = "nvidia-device-plugin"
-  }
-}
-
-resource "helm_release" "nvidia_device_plugin" {
-  name       = "nvidia-device-plugin"
-  repository = "https://nvidia.github.io/k8s-device-plugin"
-  chart      = "nvidia-device-plugin"
-  version    = "0.17.2"
-  namespace  = kubernetes_namespace.nvidia_device_plugin.metadata[0].name
-  
-  values = [
-    <<-EOT
-nodeSelector:
-  accelerator: nvidia
-gfd:
-  enabled: true
-nfd:
-  gc:
-    nodeSelector:
-      accelerator: nvidia
-  topologyUpdater:
-    nodeSelector:
-      accelerator: nvidia
-  worker:
-    nodeSelector:
-      accelerator: nvidia
-    tolerations:
-      - key: nvidia.com/gpu
-        operator: Exists
-        effect: NoSchedule
-      - operator: "Exists"
-EOT
-  ]
-}
-
-# -----------------------------------------------------------------------------
 # FOUNDATIONAL STORAGE CONFIGURATION (Best Practice)
 # These are still good to manage manually for full control.
 # -----------------------------------------------------------------------------
