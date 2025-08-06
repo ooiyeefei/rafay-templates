@@ -122,7 +122,7 @@ resource "helm_release" "v2-infra" {
   repository       = "https://rafaysystems.github.io/rafay-helm-charts/"
   chart            = "v2-infra"
   values           = [rafay_import_cluster.rafay_cluster.values_data]
-  version          = "1.1.2"
+  version          = "1.1.3"
 
   lifecycle {
     ignore_changes = [

@@ -1,12 +1,13 @@
 terraform {
   required_providers {
     rafay = {
-      version = "1.1.38"
+      version = "= 1.1.47"
       source  = "RafaySystems/rafay"
     }
-    aws = {
-      source  = "hashicorp/aws"
-      version = "5.88.0"
+
+    helm = {
+      source  = "hashicorp/helm"
+      version = "2.16.1"
     }
-}
+  }
 }
