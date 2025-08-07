@@ -300,16 +300,13 @@ resource "helm_release" "nvidia_device_plugin" {
   name       = "nvidia-device-plugin"
   repository = "https://nvidia.github.io/k8s-device-plugin"
   chart      = "nvidia-device-plugin"
-  version    = "0.17.2"
+  version    = "0.14.1"
   namespace  = kubernetes_namespace.nvidia_device_plugin.metadata[0].name
   
   values = [
     <<-EOT
 nodeSelector:
   accelerator: nvidia
-plugin:
-  deviceListStrategy: cdi
-  cdiAnnotationPrefix: "cdi.k8s.io/"
 gfd:
   enabled: true
 nfd:
