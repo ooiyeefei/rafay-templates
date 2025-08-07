@@ -307,6 +307,9 @@ resource "helm_release" "nvidia_device_plugin" {
     <<-EOT
 nodeSelector:
   accelerator: nvidia
+plugin:
+  deviceListStrategy: cdi
+  cdiAnnotationPrefix: "cdi.k8s.io/"
 gfd:
   enabled: true
 nfd:
