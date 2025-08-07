@@ -300,15 +300,32 @@ resource "helm_release" "nvidia_device_plugin" {
   name       = "nvidia-device-plugin"
   repository = "https://nvidia.github.io/k8s-device-plugin"
   chart      = "nvidia-device-plugin"
-  version    = "0.14.1"
+  # Let's stick with the version from the blueprint for maximum compatibility
+  version    = "0.14.1" 
   namespace  = kubernetes_namespace.nvidia_device_plugin.metadata[0].name
   
+  # The 'values' block is completely rewritten to match the chart's structure
   values = [
     <<-EOT
+# This is a critical setting for compatibility with modern Kubernetes CPU management
+compatWithCPUManager: true
+
+# Explicitly set the discovery strategy to CDI, which is required for Bottlerocket.
+# This is the most important fix.
+deviceListStrategy: cdi
+
+# The rest of your configuration remains, ensuring it's deployed to the right nodes.
 nodeSelector:
   accelerator: nvidia
+
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
 gfd:
   enabled: true
+
 nfd:
   gc:
     nodeSelector:
