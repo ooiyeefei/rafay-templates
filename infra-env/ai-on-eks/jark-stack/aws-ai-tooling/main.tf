@@ -231,6 +231,10 @@ module "data_addons" {
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
+        settings:
+          kubernetes:
+            gpu:
+              enabled: true
         amiSelectorTerms:
           - alias: bottlerocket@latest
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
@@ -283,55 +287,6 @@ module "data_addons" {
   }
   
   depends_on = [module.eks_blueprints_addons]
-}
-
-# -----------------------------------------------------------------------------
-# NVIDIA DEVICE PLUGIN
-# This deploys the NVIDIA device plugin via Helm to enable GPU scheduling.
-# -----------------------------------------------------------------------------
-###
-resource "kubernetes_namespace" "nvidia_device_plugin" {
-  metadata {
-    name = "nvidia-device-plugin"
-  }
-}
-
-resource "helm_release" "nvidia_device_plugin" {
-  name       = "nvidia-device-plugin"
-  repository = "https://nvidia.github.io/k8s-device-plugin"
-  chart      = "nvidia-device-plugin"
-  # Pinning the exact version from the working blueprint
-  version    = "0.14.1"
-  namespace  = kubernetes_namespace.nvidia_device_plugin.metadata[0].name
-
-  # This values block is simplified to match the working blueprint's intent.
-  # It correctly structures the tolerations and node selector without adding
-  # incompatible newer flags like 'cdi'.
-  values = [
-    <<-EOT
-nodeSelector:
-  accelerator: nvidia
-tolerations:
-  - key: "nvidia.com/gpu"
-    operator: "Exists"
-    effect: "NoSchedule"
-gfd:
-  enabled: true
-nfd:
-  worker:
-    tolerations:
-    - key: "nvidia.com/gpu"
-      operator: "Exists"
-      effect: "NoSchedule"
-    nodeSelector:
-      accelerator: nvidia
-  master:
-    tolerations:
-    - key: "nvidia.com/gpu"
-      operator: "Exists"
-      effect: "NoSchedule"
-EOT
-  ]
 }
 
 # -----------------------------------------------------------------------------
