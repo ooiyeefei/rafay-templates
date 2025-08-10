@@ -231,10 +231,6 @@ module "data_addons" {
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
-        settings:
-          kubernetes:
-            gpu:
-              enabled: true
         amiSelectorTerms:
           - alias: bottlerocket@latest
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
@@ -288,6 +284,12 @@ module "data_addons" {
   
   depends_on = [module.eks_blueprints_addons]
 }
+
+# -----------------------------------------------------------------------------
+# NVIDIA DEVICE PLUGIN
+# This deploys the NVIDIA device plugin via Helm to enable GPU scheduling.
+# -----------------------------------------------------------------------------
+###
 
 # -----------------------------------------------------------------------------
 # FOUNDATIONAL STORAGE CONFIGURATION (Best Practice)
