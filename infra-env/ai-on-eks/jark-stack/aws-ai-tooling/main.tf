@@ -173,8 +173,6 @@ module "data_addons" {
     ]
   }
 
-  # This is the "Easy Button" for creating Karpenter's NodePool and EC2NodeClass.
-  # It solves the CRD race condition correctly.
   enable_karpenter_resources = true
   karpenter_resources_helm_config = {
     x86-cpu-karpenter = {
@@ -221,8 +219,6 @@ module "data_addons" {
           - key: "karpenter.sh/capacity-type"
             operator: In
             values: ["spot", "on-demand"]
-        limits:
-          cpu: 1000
         disruption:
           consolidationPolicy: WhenEmpty
       EOT
@@ -231,10 +227,12 @@ module "data_addons" {
     g5-gpu-karpenter = {
       values = [
         <<-EOT
-      name: gpu
+      name: g5-gpu-karpenter
       clusterName: ${var.cluster_name}
       ec2NodeClass:
         amiFamily: Bottlerocket
+        amiSelectorTerms:
+          - alias: bottlerocket@latest
         karpenterRole: ${split("/", module.eks_blueprints_addons.karpenter.node_iam_role_arn)[1]}
         subnetSelectorTerms:
           tags:
@@ -259,25 +257,24 @@ module "data_addons" {
         labels:
           - type: karpenter
           - NodeGroupType: g5-gpu-karpenter
+          - accelerator: nvidia
         taints:
           - key: nvidia.com/gpu
-            value: "true"
+            value: "Exists"
             effect: "NoSchedule"
         requirements:
           - key: "karpenter.k8s.aws/instance-family"
             operator: In
-            values: ["g5", "g4dn"]
+            values: ["g5"]
           - key: "node.kubernetes.io/instance-type"
             operator: In
-            values: ["g4dn.xlarge", "g4dn.2xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge"]
+            values: ["g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge"]
           - key: "kubernetes.io/arch"
             operator: In
             values: ["amd64"]
           - key: "karpenter.sh/capacity-type"
             operator: In
             values: ["on-demand"]
-        limits:
-          cpu: 1000
         disruption:
           consolidationPolicy: WhenEmpty
       EOT
@@ -287,6 +284,12 @@ module "data_addons" {
   
   depends_on = [module.eks_blueprints_addons]
 }
+
+# -----------------------------------------------------------------------------
+# NVIDIA DEVICE PLUGIN
+# This deploys the NVIDIA device plugin via Helm to enable GPU scheduling.
+# -----------------------------------------------------------------------------
+###
 
 # -----------------------------------------------------------------------------
 # FOUNDATIONAL STORAGE CONFIGURATION (Best Practice)
