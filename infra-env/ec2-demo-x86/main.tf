@@ -1,96 +1,83 @@
-# ------------------------------------------------------------------------------
-# Local Variables
-#
-# Creates a standardized naming prefix and other local values from the input
-# variables to ensure resource uniqueness and consistency.
-# ------------------------------------------------------------------------------
-locals {
-  # Prepends resource names with the first 5 chars of the env name for uniqueness
-  name_prefix = substr(var.environment_name, 0, 5)
-  ssh_user    = "ubuntu"
-  # Creates a dynamic key pair name from the full environment name
-  key_name    = "${var.environment_name}-keypair"
+provider "aws" {
+  region = var.aws_region
 }
 
-# ------------------------------------------------------------------------------
-# Key Pair
-#
-# Creates a new RSA key pair for SSH access and stores the private key
-# securely in AWS SSM Parameter Store. The key name is dynamic based on the
-# injected environment name.
-# ------------------------------------------------------------------------------
-resource "tls_private_key" "agent_host_key" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
 
-resource "aws_key_pair" "agent_host_key_pair" {
-  key_name   = local.key_name
-  public_key = tls_private_key.agent_host_key.public_key_openssh
-}
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
 
-resource "aws_ssm_parameter" "ssh_private_key" {
-  name        = "/ec2/keypair/${aws_key_pair.agent_host_key_pair.id}"
-  description = "Private key for the agent host instance. Do not expose."
-  type        = "SecureString"
-  value       = tls_private_key.agent_host_key.private_key_pem
-  tags = {
-    Name = "${local.name_prefix}-ssh-key"
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 
-# ------------------------------------------------------------------------------
-# Networking
-#
-# Sets up the VPC and related networking resources. The 'Name' tags are all
-# prepended with the 5-character prefix from the environment name for uniqueness.
-# ------------------------------------------------------------------------------
-resource "aws_vpc" "agent_host_vpc" {
+resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
+
   tags = {
-    Name = "${local.name_prefix}-AgentHostVPC"
+    Name = "CpuHostVPC"
   }
 }
 
-resource "aws_subnet" "agent_host_public_subnet" {
-  vpc_id                  = aws_vpc.agent_host_vpc.id
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
   availability_zone       = data.aws_availability_zones.available.names[0]
+
   tags = {
-    Name = "${local.name_prefix}-PublicSubnet"
+    Name = "Public"
   }
 }
 
-resource "aws_internet_gateway" "agent_host_igw" {
-  vpc_id = aws_vpc.agent_host_vpc.id
+resource "aws_subnet" "isolated" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.100.0/28"
+  availability_zone = data.aws_availability_zones.available.names[0]
+
   tags = {
-    Name = "${local.name_prefix}-AgentHostIGW"
+    Name = "Isolated"
   }
 }
 
-resource "aws_route_table" "agent_host_public_rt" {
-  vpc_id = aws_vpc.agent_host_vpc.id
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "CpuHostIGW"
+  }
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.agent_host_igw.id
+    gateway_id = aws_internet_gateway.gw.id
   }
+
   tags = {
-    Name = "${local.name_prefix}-PublicRouteTable"
+    Name = "Public"
   }
 }
 
 resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.agent_host_public_subnet.id
-  route_table_id = aws_route_table.agent_host_public_rt.id
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
 }
 
-resource "aws_security_group" "agent_host_sg" {
-  name        = "${local.name_prefix}-agent-host-sg"
-  description = "Allow SSH and enable SSM for the agent host"
-  vpc_id      = aws_vpc.agent_host_vpc.id
+resource "aws_security_group" "main" {
+  name        = "CpuHostSG"
+  description = "Allow SSH and enable SSM for the host"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 22
@@ -98,6 +85,22 @@ resource "aws_security_group" "agent_host_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
     description = "Allow SSH access from anywhere"
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTP traffic for Ingress"
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS traffic for Ingress"
   }
 
   egress {
@@ -108,19 +111,12 @@ resource "aws_security_group" "agent_host_sg" {
   }
 
   tags = {
-    Name = "${local.name_prefix}-agent-host-sg"
+    Name = "CpuHostSG"
   }
 }
 
-# ------------------------------------------------------------------------------
-# IAM Role and Policies
-#
-# The IAM Role name is prepended with the 5-character prefix to ensure it is
-# unique within the AWS account.
-# ------------------------------------------------------------------------------
-resource "aws_iam_role" "agent_host_role" {
-  name = "${local.name_prefix}-AgentHostComputeRole"
-  path = "/"
+resource "aws_iam_role" "instance_role" {
+  name = "CpuHostEC2Role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -133,25 +129,21 @@ resource "aws_iam_role" "agent_host_role" {
       },
     ]
   })
-  tags = {
-    Name = "${local.name_prefix}-AgentHostComputeRole"
-  }
 }
 
-# This policy attachment is critical for allowing SSM / Instance Connect.
-resource "aws_iam_role_policy_attachment" "ssm_policy" {
-  role       = aws_iam_role.agent_host_role.name
+resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
+  role       = aws_iam_role.instance_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-resource "aws_iam_role_policy_attachment" "eks_worker_policy" {
-  role       = aws_iam_role.agent_host_role.name
+resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
+  role       = aws_iam_role.instance_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
 
 resource "aws_iam_policy" "ebs_csi_policy" {
-  name        = "${local.name_prefix}-EbsCsiDriverPolicy"
-  description = "Policy required by the AWS EBS CSI driver."
+  name        = "EbsCsiDriverPolicy"
+  description = "EBS CSI Driver Policy"
   policy = jsonencode({
     "Version" : "2012-10-17",
     "Statement" : [
@@ -245,58 +237,44 @@ resource "aws_iam_policy" "ebs_csi_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "ebs_csi_policy_attachment" {
-  role       = aws_iam_role.agent_host_role.name
+  role       = aws_iam_role.instance_role.name
   policy_arn = aws_iam_policy.ebs_csi_policy.arn
 }
 
-resource "aws_iam_instance_profile" "agent_host_profile" {
-  name = "${local.name_prefix}-AgentHostInstanceProfile"
-  role = aws_iam_role.agent_host_role.name
+resource "aws_iam_instance_profile" "instance_profile" {
+  name = "CpuHostEC2InstanceProfile"
+  role = aws_iam_role.instance_role.name
 }
 
+resource "aws_key_pair" "main" {
+  key_name   = "cpu-host-keypair"
+  public_key = tls_private_key.rsa.public_key_openssh
+}
 
-# ------------------------------------------------------------------------------
-# Data Sources
-# ------------------------------------------------------------------------------
+resource "tls_private_key" "rsa" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "local_file" "private_key" {
+  content  = tls_private_key.rsa.private_key_pem
+  filename = "cpu-host-keypair.pem"
+  file_permission = "0400"
+}
+
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
-# CHANGED: This data source now looks for a non-Graviton (x86_64) AMI.
-data "aws_ami" "ubuntu_x86" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical's AWS account ID
+resource "aws_instance" "main" {
+  count = var.num_of_instance
 
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-}
-
-# ------------------------------------------------------------------------------
-# EC2 Instance
-#
-# This is the main compute resource. It uses the variables and resources
-# defined above to launch a configured EC2 instance.
-# ------------------------------------------------------------------------------
-resource "aws_instance" "agent_host_instance" {
-  instance_type          = var.instance_type
-  # CHANGED: Use the x86_64 AMI found above
-  ami                    = data.aws_ami.ubuntu_x86.id
-  subnet_id              = aws_subnet.agent_host_public_subnet.id
-  vpc_security_group_ids = [aws_security_group.agent_host_sg.id]
-  key_name               = aws_key_pair.agent_host_key_pair.key_name
-  iam_instance_profile   = aws_iam_instance_profile.agent_host_profile.name
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+  key_name      = aws_key_pair.main.key_name
+  subnet_id     = aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.main.id]
+  iam_instance_profile = aws_iam_instance_profile.instance_profile.name
 
   root_block_device {
     volume_size           = var.root_volume_size_gib
@@ -305,40 +283,44 @@ resource "aws_instance" "agent_host_instance" {
     delete_on_termination = true
   }
 
-  metadata_options {
-    http_endpoint = "enabled"
-    http_tokens   = "required" # Enforces IMDSv2
-  }
-
-  # CHANGED: User data now installs the x86_64 version of the AWS CLI.
   user_data = <<-EOF
-    #!/bin/bash
-    set -e -x
-
-    # Update system and install basic packages including bzip2
-    apt-get update -y
-    apt-get upgrade -y
-    apt-get install -y curl wget unzip git htop bzip2
-
-    # Install AWS CLI v2 for x86_64
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    unzip awscliv2.zip
-    ./aws/install
-    rm -rf awscliv2.zip aws
-
-    # Install Docker
-    apt-get install -y docker.io
-    systemctl enable --now docker
-    usermod -aG docker ${local.ssh_user}
-
-    # Ensure SSM Agent is running for Session Manager / Instance Connect
-    systemctl enable --now snap.amazon-ssm-agent.amazon-ssm-agent.service || true
-
-    # Setup complete
-    echo "Agent host setup complete"
-  EOF
+              #!/bin/bash
+              set -e -x
+              apt-get update -y
+              apt-get upgrade -y
+              apt-get install -y curl wget unzip git htop
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+              rm -rf awscliv2.zip aws
+              apt-get install -y docker.io
+              systemctl enable --now docker
+              usermod -aG docker ubuntu
+              systemctl enable --now snap.amazon-ssm-agent.amazon-ssm-agent.service || true
+              echo "Agent host setup complete"
+              EOF
 
   tags = {
-    Name = "${var.environment_name}-AgentHost"
+    Name = "CpuHostInstance-${count.index}"
   }
+}
+
+output "instance_ids" {
+  value       = aws_instance.main[*].id
+  description = "The IDs of the EC2 instances"
+}
+
+output "instance_public_ips" {
+  value       = aws_instance.main[*].public_ip
+  description = "The Public IP addresses of the EC2 instances"
+}
+
+output "ssh_connection_command" {
+  value       = "ssh -i cpu-host-keypair.pem ubuntu@${aws_instance.main[0].public_ip}"
+  description = "Command to SSH into the first instance"
+}
+
+output "ssm_session_manager_command" {
+  value       = "aws ssm start-session --target ${aws_instance.main[0].id}"
+  description = "Command to connect to the first instance using SSM Session Manager"
 }

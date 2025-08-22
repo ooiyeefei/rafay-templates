@@ -1,25 +1,23 @@
-variable "region" {
-  description = "The AWS region where resources will be created. This will be passed from the environment configuration."
+variable "instance_type" {
+  description = "EC2 instance type"
   type        = string
+  default     = "t3.large"
 }
 
-variable "instance_type" {
-  description = "The EC2 instance type for the agent host (must be a non-Graviton, x86_64 type)."
+variable "num_of_instance" {
+  description = "Number of EC2 instances to create"
+  type        = number
+  default     = 1
+}
+
+variable "aws_region" {
+  description = "AWS region"
   type        = string
-  default     = "t3.xlarge"
+  default     = "us-east-1"
 }
 
 variable "root_volume_size_gib" {
-  description = "The size of the root EBS volume in GiB."
+  description = "The size of the root volume in gibibytes (GiB)"
   type        = number
   default     = 100
-}
-
-variable "environment_name" {
-  description = "The unique name of the environment, injected by Rafay using $(environment.name)$. Used for naming and tagging resources."
-  type        = string
-  validation {
-    condition     = length(var.environment_name) >= 5
-    error_message = "The environment_name must be at least 5 characters long to generate a unique prefix."
-  }
 }

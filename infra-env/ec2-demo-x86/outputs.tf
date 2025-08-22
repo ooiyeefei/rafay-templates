@@ -1,27 +1,28 @@
 # ------------------------------------------------------------------------------
 # Outputs
 # ------------------------------------------------------------------------------
-output "instance_id" {
-  value       = aws_instance.agent_host_instance.id
-  description = "The ID of the EC2 instance."
+
+output "instance_ids" {
+  value       = aws_instance.main[*].id
+  description = "A list of the IDs of the created EC2 instances."
 }
 
-output "instance_public_ip" {
-  value       = aws_instance.agent_host_instance.public_ip
-  description = "The Public IP address of the EC2 instance."
+output "instance_public_ips" {
+  value       = aws_instance.main[*].public_ip
+  description = "A list of the Public IP addresses of the EC2 instances."
 }
 
-output "get_ssh_key_command" {
-  value       = "aws ssm get-parameter --name ${aws_ssm_parameter.ssh_private_key.name} --with-decryption --query Parameter.Value --output text > ${local.key_name}.pem && chmod 400 ${local.key_name}.pem"
-  description = "Command to download the SSH private key from SSM Parameter Store."
+output "ssh_private_key_filename" {
+  value       = local_file.private_key.filename
+  description = "The filename of the generated SSH private key ('cpu-host-keypair.pem')."
 }
 
-output "ssh_connection_command" {
-  value       = "ssh -i ${local.key_name}.pem ${local.ssh_user}@${aws_instance.agent_host_instance.public_ip}"
-  description = "Command to SSH into the instance after downloading the key."
+output "ssh_connection_command_first_instance" {
+  value       = "ssh -i ${local_file.private_key.filename} ubuntu@${aws_instance.main[0].public_ip}"
+  description = "Command to SSH into the first instance using the generated private key."
 }
 
-output "ssm_session_manager_command" {
-  value       = "aws ssm start-session --target ${aws_instance.agent_host_instance.id}"
-  description = "MORE SECURE: Command to connect using SSM Session Manager (no SSH key or open port needed)."
+output "ssm_session_manager_command_first_instance" {
+  value       = "aws ssm start-session --target ${aws_instance.main[0].id}"
+  description = "MORE SECURE: Command to connect to the first instance using SSM Session Manager (no SSH key or open port needed)."
 }
