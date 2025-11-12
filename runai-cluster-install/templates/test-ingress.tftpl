@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    cert-manager.io/cluster-issuer: letsencrypt-demo
+  name: dummy-ingress
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ${cluster_name}-runai.${ingress_domain}
+      secretName: runai-cluster-domain-tls-secret
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: dummy
+            port:
+              number: 80
+        path: /dummy
+        pathType: Exact
+    host: ${cluster_name}-runai.${ingress_domain}
