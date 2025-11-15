@@ -36,23 +36,6 @@ variable "nodes_info" {
 #   }
 # }
 
-# --- Run:AI Configuration ---
-variable "runai_control_plane_url" {
-  type        = string
-  description = "Run:AI Control Plane URL (e.g., rafay.runailabs-ps.com)"
-}
-
-variable "runai_client_secret" {
-  type        = string
-  sensitive   = true
-  description = "Run:AI Control Plane client secret"
-}
-
-variable "runai_cluster_uid" {
-  type        = string
-  description = "Run:AI cluster UID from Control Plane"
-}
-
 variable "runai_chart_version" {
   type        = string
   default     = "2.23.17"

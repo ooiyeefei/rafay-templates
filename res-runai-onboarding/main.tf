@@ -6,8 +6,10 @@
 # 1. Parse node information and create DNS-safe hostname
 # 2. Create Route53 DNS A record
 # 3. Deploy cert-manager ClusterIssuer
-# 4. Install Run:AI Helm chart
-# 5. Create Run:AI ingress with TLS
+# 4. Create Run:AI cluster in Control Plane (via API)
+#    └─ Retrieve cluster UUID and client secret
+# 5. Install Run:AI Helm chart (using credentials from step 4)
+# 6. Create Run:AI ingress with TLS
 #
 # Dependencies are properly sequenced to ensure correct order.
 # ============================================
@@ -173,13 +175,55 @@ resource "null_resource" "wait_for_issuer_ready" {
 }
 
 # ============================================
+# Step 4.5: Create Run:AI Cluster in Control Plane
+# ============================================
+
+resource "null_resource" "create_runai_cluster" {
+  depends_on = [
+    time_sleep.wait_for_dns
+  ]
+
+  provisioner "local-exec" {
+    command     = "${path.module}/scripts/create-runai-cluster.sh"
+    working_dir = path.module
+    environment = {
+      CLUSTER_NAME            = var.cluster_name
+      CLUSTER_FQDN            = local.cluster_fqdn
+    }
+  }
+
+  triggers = {
+    cluster_name = var.cluster_name
+    cluster_fqdn = local.cluster_fqdn
+  }
+}
+
+# Read Run:AI Control Plane URL (saved by script from env var)
+data "local_file" "runai_control_plane_url" {
+  depends_on = [null_resource.create_runai_cluster]
+  filename   = "${path.module}/control_plane_url.txt"
+}
+
+# Read cluster UUID created by the script via API
+data "local_file" "runai_cluster_uuid" {
+  depends_on = [null_resource.create_runai_cluster]
+  filename   = "${path.module}/cluster_uuid.txt"
+}
+
+# Read client secret retrieved by the script via API
+data "local_sensitive_file" "runai_client_secret" {
+  depends_on = [null_resource.create_runai_cluster]
+  filename   = "${path.module}/client_secret.txt"
+}
+
+# ============================================
 # Step 5: Install Run:AI Cluster (Helm)
 # ============================================
 
 resource "helm_release" "runai_cluster" {
   depends_on = [
     null_resource.wait_for_issuer_ready,
-    time_sleep.wait_for_dns
+    null_resource.create_runai_cluster
   ]
 
   name       = "runai-cluster"
@@ -207,18 +251,19 @@ resource "helm_release" "runai_cluster" {
   # Run:AI Control Plane configuration
   set {
     name  = "controlPlane.url"
-    value = var.runai_control_plane_url
+    value = "https://${data.local_file.runai_control_plane_url.content}"
   }
 
+  # Client secret retrieved from API by create-runai-cluster.sh
   set_sensitive {
     name  = "controlPlane.clientSecret"
-    value = var.runai_client_secret
+    value = data.local_sensitive_file.runai_client_secret.content
   }
 
-  # Cluster configuration
+  # Cluster UUID retrieved from API by create-runai-cluster.sh
   set {
     name  = "cluster.uid"
-    value = var.runai_cluster_uid
+    value = data.local_file.runai_cluster_uuid.content
   }
 
   set {
