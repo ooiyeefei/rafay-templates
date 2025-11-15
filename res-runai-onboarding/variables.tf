@@ -68,13 +68,19 @@ variable "runai_helm_repo" {
 # --- DNS Configuration ---
 variable "dns_domain" {
   type        = string
-  default     = "runai.langgoose.com"
+  default     = "rafay.dev"
   description = "Base DNS domain for Run:AI clusters"
 }
 
 variable "route53_zone_id" {
   type        = string
   description = "AWS Route53 hosted zone ID"
+}
+
+variable "aws_region" {
+  type        = string
+  default     = "us-east-1"
+  description = "AWS region for Route53 operations (Route53 is global, but provider needs a region)"
 }
 
 # --- cert-manager Configuration ---
@@ -89,48 +95,38 @@ variable "cluster_issuer_name" {
   description = "Name of the cert-manager ClusterIssuer"
 }
 
-# --- Kubeconfig for kubectl operations ---
+# --- Kubeconfig Variables (Injected from res-gen-kubeconfig-user) ---
 variable "host" {
   type        = string
-  description = "Kubernetes cluster API endpoint"
-}
-
-variable "certificateauthoritydata" {
-  type        = string
-  description = "Kubernetes cluster CA certificate (base64)"
+  sensitive   = true
+  description = "The Kubernetes API server endpoint."
 }
 
 variable "clientcertificatedata" {
   type        = string
-  description = "Client certificate data for authentication (base64)"
+  sensitive   = true
+  description = "The client certificate data for Kubernetes authentication (base64)."
 }
 
 variable "clientkeydata" {
   type        = string
   sensitive   = true
-  description = "Client key data for authentication (base64)"
+  description = "The client key data for Kubernetes authentication (base64)."
 }
 
-# --- Deployment Configuration ---
-variable "environment_name" {
+variable "certificateauthoritydata" {
   type        = string
-  description = "Environment name for unique resource naming (e.g., from Rafay Environment Manager)"
-}
-
-variable "deployment_suffix" {
-  type        = string
-  default     = "v1"
-  description = "Suffix for versioning workloads"
+  sensitive   = true
+  description = "The certificate authority data for the Kubernetes cluster (base64)."
 }
 
 # --- Optional: Rafay Environment Manager Variables ---
 # These can be injected from Rafay using Starlark expressions like:
 # $(trigger.payload.username)$
-# $(environment.name)$
 # $(trigger.payload.email)$
 
 variable "rafay_triggered_by" {
   type        = string
   default     = ""
-  description = "User who triggered the deployment (from Rafay)"
+  description = "Optional: User who triggered the deployment (from Rafay)"
 }

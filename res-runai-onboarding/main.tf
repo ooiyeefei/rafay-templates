@@ -1,4 +1,23 @@
+# ============================================
+# Run:AI Cluster Onboarding Automation
+# ============================================
+#
+# This module automates the following steps:
+# 1. Parse node information and create DNS-safe hostname
+# 2. Create Route53 DNS A record
+# 3. Deploy cert-manager ClusterIssuer
+# 4. Install Run:AI Helm chart
+# 5. Create Run:AI ingress with TLS
+#
+# Dependencies are properly sequenced to ensure correct order.
+# ============================================
+
+# ============================================
+# Local Variables and Data Processing
+# ============================================
+
 locals {
+  # Extract first node information (assuming single-node or primary node)
   first_node_key = keys(var.nodes_info)[0]
   first_node     = var.nodes_info[local.first_node_key]
 
@@ -10,8 +29,8 @@ locals {
   # Example: try63524gpu01.runai.langgoose.com
   cluster_fqdn = "${local.dns_safe_hostname}.${var.dns_domain}"
 
-  # Unique TLS secret name per environment
-  tls_secret_name = "runai-tls-${var.environment_name}"
+  # Unique TLS secret name per cluster
+  tls_secret_name = "runai-tls-${var.cluster_name}"
 
   # Public IP for DNS record
   public_ip = local.first_node.ip_address
@@ -69,7 +88,7 @@ resource "time_sleep" "wait_for_dns" {
 
 resource "local_sensitive_file" "kubeconfig" {
   content  = local.kubeconfig_content
-  filename = "/tmp/kubeconfig-runai-${var.environment_name}"
+  filename = "/tmp/kubeconfig-${var.cluster_name}"
 }
 
 # ============================================
@@ -111,7 +130,7 @@ resource "rafay_workload" "cert_manager_issuer" {
   ]
 
   metadata {
-    name    = "cert-manager-issuer-${var.environment_name}"
+    name    = "cert-manager-issuer-${var.cluster_name}"
     project = var.project_name
   }
 
@@ -126,7 +145,7 @@ resource "rafay_workload" "cert_manager_issuer" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v-${var.deployment_suffix}"
+    version = "v1"
     artifact {
       type = "Yaml"
       artifact {
@@ -157,78 +176,54 @@ resource "null_resource" "wait_for_issuer_ready" {
 # Step 5: Install Run:AI Cluster (Helm)
 # ============================================
 
-resource "rafay_workload" "runai_cluster" {
+resource "helm_release" "runai_cluster" {
   depends_on = [
     null_resource.wait_for_issuer_ready,
     time_sleep.wait_for_dns
   ]
 
-  metadata {
-    name    = "runai-cluster-${var.environment_name}"
-    project = var.project_name
+  name       = "runai-cluster"
+  repository = var.runai_helm_repo
+  chart      = "runai-cluster"
+  version    = var.runai_chart_version
+  namespace  = var.namespace
+
+  create_namespace = true
+  wait             = true   # Native Helm wait for deployments to be ready
+  timeout          = 600    # 10 minutes
+  verify           = false
+
+  # Disable Run:AI's built-in ingress (we manage our own)
+  set {
+    name  = "runai-operator.researcherService.ingress.enabled"
+    value = "false"
   }
 
-  timeouts {
-    create = "15m"
-    update = "15m"
-    delete = "10m"
+  set {
+    name  = "runai-operator.clusterApi.ingress.enabled"
+    value = "false"
   }
 
-  spec {
-    namespace = var.namespace
-    placement {
-      selector = "rafay.dev/clusterName=${var.cluster_name}"
-    }
-    version = "v-${var.deployment_suffix}-runai"
-    artifact {
-      type = "Helm"
-      artifact {
-        repository    = var.runai_helm_repo
-        chart_name    = "runai-cluster"
-        chart_version = var.runai_chart_version
-
-        # Helm values configuration
-        values = <<-EOT
-          # Disable Run:AI's built-in ingress (we manage our own)
-          runai-operator:
-            researcherService:
-              ingress:
-                enabled: false
-            clusterApi:
-              ingress:
-                enabled: false
-
-          controlPlane:
-            url: ${var.runai_control_plane_url}
-            clientSecret: ${var.runai_client_secret}
-
-          cluster:
-            uid: ${var.runai_cluster_uid}
-            url: https://${local.cluster_fqdn}
-        EOT
-      }
-    }
-  }
-}
-
-# ACTIVELY WAIT for Run:AI Deployments to be available
-resource "null_resource" "wait_for_runai_ready" {
-  depends_on = [rafay_workload.runai_cluster]
-
-  provisioner "local-exec" {
-    # Wait for Run:AI deployments to be Available (all replicas ready)
-    # This ensures backend services are available when ingress routes traffic
-    command = <<-EOT
-      kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} \
-        wait --for=condition=Available deployment \
-        -l app.kubernetes.io/instance=runai-cluster \
-        -n ${var.namespace} \
-        --timeout=300s
-    EOT
+  # Run:AI Control Plane configuration
+  set {
+    name  = "controlPlane.url"
+    value = var.runai_control_plane_url
   }
 
-  triggers = {
-    workload_version = rafay_workload.runai_cluster.spec[0].version
+  set_sensitive {
+    name  = "controlPlane.clientSecret"
+    value = var.runai_client_secret
+  }
+
+  # Cluster configuration
+  set {
+    name  = "cluster.uid"
+    value = var.runai_cluster_uid
+  }
+
+  set {
+    name  = "cluster.url"
+    value = "https://${local.cluster_fqdn}"
   }
 }
 
@@ -238,12 +233,12 @@ resource "null_resource" "wait_for_runai_ready" {
 
 resource "rafay_workload" "runai_ingress" {
   depends_on = [
-    null_resource.wait_for_runai_ready,
+    helm_release.runai_cluster,
     local_file.runai_ingress_yaml
   ]
 
   metadata {
-    name    = "runai-ingress-${var.environment_name}"
+    name    = "runai-ingress-${var.cluster_name}"
     project = var.project_name
   }
 
@@ -258,7 +253,7 @@ resource "rafay_workload" "runai_ingress" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v-${var.deployment_suffix}-ingress"
+    version = "v1"
     artifact {
       type = "Yaml"
       artifact {
