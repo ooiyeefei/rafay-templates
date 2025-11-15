@@ -119,14 +119,3 @@ variable "certificateauthoritydata" {
   sensitive   = true
   description = "The certificate authority data for the Kubernetes cluster (base64)."
 }
-
-# --- Optional: Rafay Environment Manager Variables ---
-# These can be injected from Rafay using Starlark expressions like:
-# $(trigger.payload.username)$
-# $(trigger.payload.email)$
-
-variable "rafay_triggered_by" {
-  type        = string
-  default     = ""
-  description = "Optional: User who triggered the deployment (from Rafay)"
-}
