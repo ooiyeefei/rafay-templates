@@ -46,7 +46,7 @@ output "deployment_status" {
   value = {
     dns_created         = aws_route53_record.runai_cluster.fqdn
     cluster_issuer      = "Deployed via ${rafay_workload.cert_manager_issuer.metadata[0].name}"
-    runai_cluster       = "Deployed via ${rafay_workload.runai_cluster.metadata[0].name}"
+    runai_cluster       = "Deployed via Helm (${helm_release.runai_cluster.name})"
     runai_ingress       = "Deployed via ${rafay_workload.runai_ingress.metadata[0].name}"
     access_url          = "https://${local.cluster_fqdn}"
   }
