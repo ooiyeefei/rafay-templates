@@ -18,29 +18,10 @@
 # Data Sources
 # ============================================
 
-# Download kubeconfig from Rafay URL using authenticated curl
-# The URL requires Rafay session authentication
-resource "null_resource" "fetch_kubeconfig" {
-  provisioner "local-exec" {
-    command = <<-EOT
-      curl -L -f -s -o kubeconfig.yaml "${var.kubeconfig_url}" || {
-        echo "Failed to download kubeconfig from Rafay URL"
-        echo "URL: ${var.kubeconfig_url}"
-        exit 1
-      }
-    EOT
-    working_dir = path.module
-  }
-
-  triggers = {
-    kubeconfig_url = var.kubeconfig_url
-  }
-}
-
-# Read the downloaded kubeconfig file
-data "local_file" "kubeconfig_content" {
-  depends_on = [null_resource.fetch_kubeconfig]
-  filename   = "${path.module}/kubeconfig.yaml"
+# Fetch kubeconfig directly from Rafay using the provider
+# This uses Rafay API authentication automatically
+data "rafay_download_kubeconfig" "cluster" {
+  cluster = var.cluster_name
 }
 
 # ============================================
@@ -68,8 +49,8 @@ locals {
   public_ip = local.first_node.ip_address
 
   # Parse kubeconfig YAML to extract authentication data
-  # Use the downloaded kubeconfig content
-  kubeconfig_parsed = yamldecode(data.local_file.kubeconfig_content.content)
+  # Use the Rafay-fetched kubeconfig content
+  kubeconfig_parsed = yamldecode(data.rafay_download_kubeconfig.cluster.kubeconfig)
 
   # Extract Kubernetes API server endpoint
   # kubeconfig.clusters[0].cluster.server
@@ -87,8 +68,8 @@ locals {
   # kubeconfig.users[0].user.client-key-data
   client_key_data = local.kubeconfig_parsed.users[0].user["client-key-data"]
 
-  # Use the downloaded kubeconfig YAML for kubectl operations
-  kubeconfig_content = data.local_file.kubeconfig_content.content
+  # Use the Rafay-fetched kubeconfig YAML for kubectl operations
+  kubeconfig_content = data.rafay_download_kubeconfig.cluster.kubeconfig
 }
 
 # ============================================
@@ -209,7 +190,7 @@ resource "null_resource" "create_runai_cluster" {
   ]
 
   provisioner "local-exec" {
-    command     = "${path.module}/scripts/create-runai-cluster.sh"
+    command     = "bash ${path.module}/scripts/create-runai-cluster.sh"
     working_dir = path.module
     environment = {
       # RUNAI_CONTROL_PLANE_URL, RUNAI_APP_ID, RUNAI_APP_SECRET

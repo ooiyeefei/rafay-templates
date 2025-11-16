@@ -91,13 +91,3 @@ variable "cluster_issuer_name" {
   default     = "letsencrypt-prod"
   description = "Name of the cert-manager ClusterIssuer"
 }
-
-# --- Kubeconfig Variable (Injected from res-gen-kubeconfig) ---
-# Rafay expression: Use the kubeconfig URL from res-gen-kubeconfig
-# Example: $(resource."res-gen-kubeconfig".output.cluster_kubeconfig.value)$
-# This URL will be fetched to retrieve the actual kubeconfig YAML content
-variable "kubeconfig_url" {
-  type        = string
-  sensitive   = true
-  description = "URL to fetch kubeconfig YAML from res-gen-kubeconfig output"
-}
