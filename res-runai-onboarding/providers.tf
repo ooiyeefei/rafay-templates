@@ -37,19 +37,19 @@ provider "aws" {
 # Configure Kubernetes provider for direct cluster access
 # This enables potential future use of kubernetes resources
 provider "kubernetes" {
-  host                   = var.host
-  client_certificate     = base64decode(var.clientcertificatedata)
-  client_key             = base64decode(var.clientkeydata)
-  cluster_ca_certificate = base64decode(var.certificateauthoritydata)
+  host                   = local.host
+  client_certificate     = base64decode(local.client_certificate_data)
+  client_key             = base64decode(local.client_key_data)
+  cluster_ca_certificate = base64decode(local.certificate_authority_data)
 }
 
 # Configure Helm provider for Helm chart deployments
 # Uses same authentication as Kubernetes provider
 provider "helm" {
   kubernetes = {
-    host                   = var.host
-    client_certificate     = base64decode(var.clientcertificatedata)
-    client_key             = base64decode(var.clientkeydata)
-    cluster_ca_certificate = base64decode(var.certificateauthoritydata)
+    host                   = local.host
+    client_certificate     = base64decode(local.client_certificate_data)
+    client_key             = base64decode(local.client_key_data)
+    cluster_ca_certificate = base64decode(local.certificate_authority_data)
   }
 }

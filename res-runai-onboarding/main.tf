@@ -37,33 +37,27 @@ locals {
   # Public IP for DNS record
   public_ip = local.first_node.ip_address
 
-  # Kubeconfig content for kubectl operations
-  kubeconfig_content = yamlencode({
-    apiVersion      = "v1"
-    kind            = "Config"
-    current-context = "default"
-    clusters = [{
-      name = var.cluster_name
-      cluster = {
-        server                     = var.host
-        certificate-authority-data = var.certificateauthoritydata
-      }
-    }]
-    contexts = [{
-      name = "default"
-      context = {
-        cluster = var.cluster_name
-        user    = "default"
-      }
-    }]
-    users = [{
-      name = "default"
-      user = {
-        client-certificate-data = var.clientcertificatedata
-        client-key-data         = var.clientkeydata
-      }
-    }]
-  })
+  # Parse kubeconfig YAML to extract authentication data
+  kubeconfig_parsed = yamldecode(var.kubeconfig_yaml)
+
+  # Extract Kubernetes API server endpoint
+  # kubeconfig.clusters[0].cluster.server
+  host = local.kubeconfig_parsed.clusters[0].cluster.server
+
+  # Extract certificate authority data (base64)
+  # kubeconfig.clusters[0].cluster.certificate-authority-data
+  certificate_authority_data = local.kubeconfig_parsed.clusters[0].cluster["certificate-authority-data"]
+
+  # Extract client certificate data (base64)
+  # kubeconfig.users[0].user.client-certificate-data
+  client_certificate_data = local.kubeconfig_parsed.users[0].user["client-certificate-data"]
+
+  # Extract client key data (base64)
+  # kubeconfig.users[0].user.client-key-data
+  client_key_data = local.kubeconfig_parsed.users[0].user["client-key-data"]
+
+  # Use the original kubeconfig YAML for kubectl operations
+  kubeconfig_content = var.kubeconfig_yaml
 }
 
 # ============================================

@@ -78,27 +78,8 @@ variable "cluster_issuer_name" {
   description = "Name of the cert-manager ClusterIssuer"
 }
 
-# --- Kubeconfig Variables (Injected from res-gen-kubeconfig-user) ---
-variable "host" {
-  type        = string
-  sensitive   = true
-  description = "The Kubernetes API server endpoint."
-}
-
-variable "clientcertificatedata" {
-  type        = string
-  sensitive   = true
-  description = "The client certificate data for Kubernetes authentication (base64)."
-}
-
-variable "clientkeydata" {
-  type        = string
-  sensitive   = true
-  description = "The client key data for Kubernetes authentication (base64)."
-}
-
-variable "certificateauthoritydata" {
-  type        = string
-  sensitive   = true
-  description = "The certificate authority data for the Kubernetes cluster (base64)."
-}
+variable "kubeconfig_yaml" {
+    type        = string
+    sensitive   = true
+    description = "Full kubeconfig YAML content"
+  }
