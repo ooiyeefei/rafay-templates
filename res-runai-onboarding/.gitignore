@@ -5,6 +5,7 @@ control_plane_url.txt
 
 # Temporary kubeconfig
 /tmp/kubeconfig-*
+kubeconfig.yaml
 
 # Generated YAML files
 cluster-issuer.yaml

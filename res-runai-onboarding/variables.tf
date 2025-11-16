@@ -1,3 +1,7 @@
+# ============================================
+# Input Variables for Run:AI Onboarding
+# ============================================
+
 # --- Cluster Information ---
 variable "cluster_name" {
   type        = string
@@ -16,18 +20,23 @@ variable "namespace" {
 }
 
 # --- Node Information from Previous Terraform Output ---
+# Note: Variable name must match upstream output name
+# Upstream outputs: { nodes_info = {...}, number_of_nodes = N }
 variable "nodes_information" {
-  type = map(object({
-    hostname         = string
-    ip_address       = string  # Public IP
-    operating_system = string
-    private_ip       = string
-  }))
+  type = object({
+    nodes_info = map(object({
+      hostname         = string
+      ip_address       = string  # Public IP
+      operating_system = string
+      private_ip       = string
+    }))
+    number_of_nodes = number
+  })
   description = "Output from res-upstream-infra-device terraform with nodes information"
 }
 
 # Example:
-# nodes_information = {
+# nodes_info = {
 #   "TRY-63524-gpu01" = {
 #     hostname         = "TRY-63524-gpu01"
 #     ip_address       = "72.25.67.15"
@@ -35,6 +44,11 @@ variable "nodes_information" {
 #     private_ip       = "172.16.0.129"
 #   }
 # }
+
+# --- Run:AI Configuration ---
+# Note: RUNAI_CONTROL_PLANE_URL, RUNAI_APP_ID, and RUNAI_APP_SECRET
+# are provided via Rafay Config Context environment variables (like AWS credentials)
+# No Terraform variables needed for these!
 
 variable "runai_chart_version" {
   type        = string
@@ -51,7 +65,7 @@ variable "runai_helm_repo" {
 # --- DNS Configuration ---
 variable "dns_domain" {
   type        = string
-  default     = "rafay.dev"
+  default     = "runai.langgoose.com"
   description = "Base DNS domain for Run:AI clusters"
 }
 
@@ -78,6 +92,10 @@ variable "cluster_issuer_name" {
   description = "Name of the cert-manager ClusterIssuer"
 }
 
+# --- Kubeconfig Variable (Injected from res-gen-kubeconfig) ---
+# Rafay expression: Use the kubeconfig URL from res-gen-kubeconfig
+# Example: $(resource."res-gen-kubeconfig".output.cluster_kubeconfig.value)$
+# This URL will be fetched to retrieve the actual kubeconfig YAML content
 variable "kubeconfig_url" {
   type        = string
   sensitive   = true

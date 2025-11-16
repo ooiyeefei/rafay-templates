@@ -18,12 +18,29 @@
 # Data Sources
 # ============================================
 
-# Fetch kubeconfig content from Rafay URL
-data "http" "kubeconfig" {
-  url = var.kubeconfig_url
+# Download kubeconfig from Rafay URL using authenticated curl
+# The URL requires Rafay session authentication
+resource "null_resource" "fetch_kubeconfig" {
+  provisioner "local-exec" {
+    command = <<-EOT
+      curl -L -f -s -o kubeconfig.yaml "${var.kubeconfig_url}" || {
+        echo "Failed to download kubeconfig from Rafay URL"
+        echo "URL: ${var.kubeconfig_url}"
+        exit 1
+      }
+    EOT
+    working_dir = path.module
+  }
 
-  # Rafay kubeconfig endpoints typically don't require additional headers
-  # Authentication is embedded in the URL
+  triggers = {
+    kubeconfig_url = var.kubeconfig_url
+  }
+}
+
+# Read the downloaded kubeconfig file
+data "local_file" "kubeconfig_content" {
+  depends_on = [null_resource.fetch_kubeconfig]
+  filename   = "${path.module}/kubeconfig.yaml"
 }
 
 # ============================================
@@ -51,8 +68,8 @@ locals {
   public_ip = local.first_node.ip_address
 
   # Parse kubeconfig YAML to extract authentication data
-  # Use the fetched content from the HTTP data source
-  kubeconfig_parsed = yamldecode(data.http.kubeconfig.response_body)
+  # Use the downloaded kubeconfig content
+  kubeconfig_parsed = yamldecode(data.local_file.kubeconfig_content.content)
 
   # Extract Kubernetes API server endpoint
   # kubeconfig.clusters[0].cluster.server
@@ -70,8 +87,8 @@ locals {
   # kubeconfig.users[0].user.client-key-data
   client_key_data = local.kubeconfig_parsed.users[0].user["client-key-data"]
 
-  # Use the fetched kubeconfig YAML for kubectl operations
-  kubeconfig_content = data.http.kubeconfig.response_body
+  # Use the downloaded kubeconfig YAML for kubectl operations
+  kubeconfig_content = data.local_file.kubeconfig_content.content
 }
 
 # ============================================
