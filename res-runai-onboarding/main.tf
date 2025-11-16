@@ -231,39 +231,37 @@ resource "helm_release" "runai_cluster" {
   timeout          = 600    # 10 minutes
   verify           = false
 
-  # Disable Run:AI's built-in ingress (we manage our own)
-  set {
-    name  = "runai-operator.researcherService.ingress.enabled"
-    value = "false"
-  }
-
-  set {
-    name  = "runai-operator.clusterApi.ingress.enabled"
-    value = "false"
-  }
-
-  # Run:AI Control Plane configuration
-  set {
-    name  = "controlPlane.url"
-    value = "https://${data.local_file.runai_control_plane_url.content}"
-  }
+  set = [
+    {
+      name  = "runai-operator.researcherService.ingress.enabled"
+      value = "false"
+    },
+    {
+      name  = "runai-operator.clusterApi.ingress.enabled"
+      value = "false"
+    },
+    {
+      name  = "controlPlane.url"
+      value = "https://${data.local_file.runai_control_plane_url.content}"
+    },
+    {
+      name  = "cluster.uid"
+      value = data.local_file.runai_cluster_uuid.content
+    },
+    {
+      name  = "cluster.url"
+      value = "https://${local.cluster_fqdn}"
+    }
+  ]
 
   # Client secret retrieved from API by create-runai-cluster.sh
-  set_sensitive {
-    name  = "controlPlane.clientSecret"
-    value = data.local_sensitive_file.runai_client_secret.content
-  }
-
-  # Cluster UUID retrieved from API by create-runai-cluster.sh
-  set {
-    name  = "cluster.uid"
-    value = data.local_file.runai_cluster_uuid.content
-  }
-
-  set {
-    name  = "cluster.url"
-    value = "https://${local.cluster_fqdn}"
-  }
+  # Note: Using Helm provider v3.x syntax (list of objects)
+  set_sensitive = [
+    {
+      name  = "controlPlane.clientSecret"
+      value = data.local_sensitive_file.runai_client_secret.content
+    }
+  ]
 }
 
 # ============================================
