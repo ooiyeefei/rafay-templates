@@ -20,8 +20,8 @@
 
 locals {
   # Extract first node information (assuming single-node or primary node)
-  first_node_key = keys(var.nodes_info)[0]
-  first_node     = var.nodes_info[local.first_node_key]
+  first_node_key = keys(var.nodes_information)[0]
+  first_node     = var.nodes_information[local.first_node_key]
 
   # Sanitize hostname for DNS (remove dashes, lowercase)
   # TRY-63524-gpu01 -> try63524gpu01

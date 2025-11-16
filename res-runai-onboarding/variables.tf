@@ -16,7 +16,7 @@ variable "namespace" {
 }
 
 # --- Node Information from Previous Terraform Output ---
-variable "nodes_info" {
+variable "nodes_information" {
   type = map(object({
     hostname         = string
     ip_address       = string  # Public IP
@@ -27,7 +27,7 @@ variable "nodes_info" {
 }
 
 # Example:
-# nodes_info = {
+# nodes_information = {
 #   "TRY-63524-gpu01" = {
 #     hostname         = "TRY-63524-gpu01"
 #     ip_address       = "72.25.67.15"
