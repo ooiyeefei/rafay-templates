@@ -78,8 +78,8 @@ variable "cluster_issuer_name" {
   description = "Name of the cert-manager ClusterIssuer"
 }
 
-variable "kubeconfig_yaml" {
-    type        = string
-    sensitive   = true
-    description = "Full kubeconfig YAML content"
-  }
+variable "kubeconfig_url" {
+  type        = string
+  sensitive   = true
+  description = "URL to fetch kubeconfig YAML from res-gen-kubeconfig output"
+}

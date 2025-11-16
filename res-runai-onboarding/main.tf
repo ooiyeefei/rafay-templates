@@ -15,13 +15,26 @@
 # ============================================
 
 # ============================================
+# Data Sources
+# ============================================
+
+# Fetch kubeconfig content from Rafay URL
+data "http" "kubeconfig" {
+  url = var.kubeconfig_url
+
+  # Rafay kubeconfig endpoints typically don't require additional headers
+  # Authentication is embedded in the URL
+}
+
+# ============================================
 # Local Variables and Data Processing
 # ============================================
 
 locals {
   # Extract first node information (assuming single-node or primary node)
-  first_node_key = keys(var.nodes_information)[0]
-  first_node     = var.nodes_information[local.first_node_key]
+  # Access nodes_info field from the wrapper object
+  first_node_key = keys(var.nodes_information.nodes_info)[0]
+  first_node     = var.nodes_information.nodes_info[local.first_node_key]
 
   # Sanitize hostname for DNS (remove dashes, lowercase)
   # TRY-63524-gpu01 -> try63524gpu01
@@ -38,7 +51,8 @@ locals {
   public_ip = local.first_node.ip_address
 
   # Parse kubeconfig YAML to extract authentication data
-  kubeconfig_parsed = yamldecode(var.kubeconfig_yaml)
+  # Use the fetched content from the HTTP data source
+  kubeconfig_parsed = yamldecode(data.http.kubeconfig.response_body)
 
   # Extract Kubernetes API server endpoint
   # kubeconfig.clusters[0].cluster.server
@@ -56,8 +70,8 @@ locals {
   # kubeconfig.users[0].user.client-key-data
   client_key_data = local.kubeconfig_parsed.users[0].user["client-key-data"]
 
-  # Use the original kubeconfig YAML for kubectl operations
-  kubeconfig_content = var.kubeconfig_yaml
+  # Use the fetched kubeconfig YAML for kubectl operations
+  kubeconfig_content = data.http.kubeconfig.response_body
 }
 
 # ============================================
@@ -181,8 +195,10 @@ resource "null_resource" "create_runai_cluster" {
     command     = "${path.module}/scripts/create-runai-cluster.sh"
     working_dir = path.module
     environment = {
-      CLUSTER_NAME            = var.cluster_name
-      CLUSTER_FQDN            = local.cluster_fqdn
+      # RUNAI_CONTROL_PLANE_URL, RUNAI_APP_ID, RUNAI_APP_SECRET
+      # are inherited from Rafay Config Context (like AWS_ACCESS_KEY_ID)
+      CLUSTER_NAME = var.cluster_name
+      CLUSTER_FQDN = local.cluster_fqdn
     }
   }
 
@@ -231,6 +247,8 @@ resource "helm_release" "runai_cluster" {
   timeout          = 600    # 10 minutes
   verify           = false
 
+  # Disable Run:AI's built-in ingress (we manage our own)
+  # Note: Using Helm provider v3.x syntax (list of objects)
   set = [
     {
       name  = "runai-operator.researcherService.ingress.enabled"

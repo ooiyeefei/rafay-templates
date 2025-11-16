@@ -26,6 +26,10 @@ terraform {
       source  = "hashicorp/helm"
       version = ">=2.9.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = ">=3.0.0"
+    }
   }
 }
 
@@ -36,6 +40,7 @@ provider "aws" {
 
 # Configure Kubernetes provider for direct cluster access
 # This enables potential future use of kubernetes resources
+# Uses values parsed from kubeconfig_yaml
 provider "kubernetes" {
   host                   = local.host
   client_certificate     = base64decode(local.client_certificate_data)
