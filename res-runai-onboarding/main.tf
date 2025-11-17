@@ -234,6 +234,7 @@ resource "null_resource" "create_runai_cluster" {
   }
 
   triggers = {
+    always_run     = timestamp()  # Force re-run on every apply (idempotent API calls)
     cluster_name   = var.cluster_name
     cluster_fqdn   = local.cluster_fqdn
     chart_version  = var.runai_chart_version
