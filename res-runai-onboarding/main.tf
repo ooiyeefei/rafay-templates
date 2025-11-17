@@ -314,6 +314,17 @@ resource "helm_release" "runai_cluster" {
       value = data.local_sensitive_file.runai_client_secret.content
     }
   ]
+
+  # Prevent "inconsistent result" errors when values change from placeholder to real
+  # The Helm provider tracks metadata changes (revision, values, timestamps)
+  # We need to ignore these because our values intentionally change during apply
+  lifecycle {
+    ignore_changes = [
+      metadata[0].revision,
+      metadata[0].values,
+      metadata[0].last_deployed
+    ]
+  }
 }
 
 # ============================================
