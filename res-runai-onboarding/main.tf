@@ -398,22 +398,43 @@ resource "null_resource" "delete_runai_cluster" {
   ]
 
   # This runs ONLY during terraform destroy
-  # IMPORTANT: We inline the script to ensure it's available during destroy
   provisioner "local-exec" {
     when        = destroy
     working_dir = path.module
-    command     = <<-EOT
+
+    # Pass values as environment variables (accessible during destroy)
+    environment = {
+      CLUSTER_UUID_FILE        = "cluster_uuid.txt"
+      CONTROL_PLANE_URL_FILE   = "control_plane_url.txt"
+    }
+
+    command = <<-EOT
       #!/usr/bin/env bash
       set -euo pipefail
 
       echo "=== Run:AI Cluster Deletion ==="
 
-      # Access stored values from triggers (available during destroy via self.triggers)
-      CLUSTER_UUID="${self.triggers.cluster_uuid}"
-      CONTROL_PLANE_URL="${self.triggers.control_plane_url}"
+      # Read values from files (they should still exist during destroy)
+      if [ -f "$CLUSTER_UUID_FILE" ]; then
+        CLUSTER_UUID=$(cat "$CLUSTER_UUID_FILE" || echo "")
+      else
+        CLUSTER_UUID=""
+      fi
 
-      if [[ -n "$CLUSTER_UUID" ]] && [[ -n "$CONTROL_PLANE_URL" ]] && \
-         [[ -n "${RUNAI_APP_ID:-}" ]] && [[ -n "${RUNAI_APP_SECRET:-}" ]]; then
+      if [ -f "$CONTROL_PLANE_URL_FILE" ]; then
+        CONTROL_PLANE_URL=$(cat "$CONTROL_PLANE_URL_FILE" || echo "")
+      else
+        CONTROL_PLANE_URL=""
+      fi
+
+      # Check for placeholder values
+      if [ "$CLUSTER_UUID" = "placeholder" ] || [ "$CONTROL_PLANE_URL" = "placeholder" ]; then
+        echo "Skipping deletion: placeholder values detected"
+        exit 0
+      fi
+
+      if [ -n "$CLUSTER_UUID" ] && [ -n "$CONTROL_PLANE_URL" ] && \
+         [ -n "$${RUNAI_APP_ID}" ] && [ -n "$${RUNAI_APP_SECRET}" ]; then
 
         echo "Cluster UUID: $CLUSTER_UUID"
         echo "Control Plane: $CONTROL_PLANE_URL"
@@ -421,13 +442,13 @@ resource "null_resource" "delete_runai_cluster" {
         # Authenticate
         echo "Step 1: Authenticating..."
         TOKEN_RESPONSE=$(wget -q -O- \
-          --post-data="{\"grantType\":\"app_token\",\"AppId\":\"${RUNAI_APP_ID}\",\"AppSecret\":\"${RUNAI_APP_SECRET}\"}" \
+          --post-data="{\"grantType\":\"app_token\",\"AppId\":\"$${RUNAI_APP_ID}\",\"AppSecret\":\"$${RUNAI_APP_SECRET}\"}" \
           --header="Content-Type: application/json" \
           "https://$CONTROL_PLANE_URL/api/v1/token" 2>&1 || echo "")
 
         TOKEN=$(echo "$TOKEN_RESPONSE" | ./jq -r '.accessToken // empty' 2>/dev/null || echo "")
 
-        if [[ -n "$TOKEN" ]]; then
+        if [ -n "$TOKEN" ]; then
           echo "✓ Authentication successful"
           echo "Step 2: Deleting cluster..."
 
@@ -448,17 +469,11 @@ resource "null_resource" "delete_runai_cluster" {
 
       echo "=== Cleanup Complete ==="
     EOT
-
-    # Environment variables automatically inherited from Rafay Config Context:
-    # - RUNAI_APP_ID
-    # - RUNAI_APP_SECRET
   }
 
-  # Store values in triggers so they're available during destroy via self.triggers
+  # Trigger on cluster name change to ensure resource is created
   triggers = {
-    cluster_uuid        = try(data.local_file.runai_cluster_uuid.content, "placeholder")
-    control_plane_url   = try(data.local_file.runai_control_plane_url.content, "placeholder")
-    # These values are captured at creation time and available during destroy
+    cluster_name = var.cluster_name
   }
 }
 
