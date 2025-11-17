@@ -67,9 +67,9 @@ TOKEN=$(curl -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" \
   --header "Accept: application/json" \
   --header "Content-Type: application/json" \
   --data-raw "{
-    \"grantType\": \"app_token\",
-    \"AppId\": \"${RUNAI_APP_ID}\",
-    \"AppSecret\": \"${RUNAI_APP_SECRET}\"
+    \"grantType\": \"client_credentials\",
+    \"clientId\": \"${RUNAI_APP_ID}\",
+    \"clientSecret\": \"${RUNAI_APP_SECRET}\"
   }" | ${JQ} -r '.accessToken')
 
 if [ -z "${TOKEN}" ] || [ "${TOKEN}" == "null" ]; then
