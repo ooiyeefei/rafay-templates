@@ -23,3 +23,6 @@ kubectl
 !terraform.tfvars.example
 .terraform/
 .terraform.lock.hcl
+
+cluster-issuer.yaml
+runai-ingress.yaml
