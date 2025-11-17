@@ -5,13 +5,14 @@
 # This module automates the following steps:
 # 1. Parse node information and create DNS-safe hostname
 # 2. Create Route53 DNS A record
-# 3. Deploy cert-manager ClusterIssuer
+# 3. Deploy cert-manager ClusterIssuer (via kubectl)
 # 4. Create Run:AI cluster in Control Plane (via API)
 #    └─ Retrieve cluster UUID and client secret
 # 5. Install Run:AI Helm chart (using credentials from step 4)
-# 6. Create Run:AI ingress with TLS
+# 6. Create Run:AI ingress with TLS (via kubectl)
 #
 # Dependencies are properly sequenced to ensure correct order.
+# Uses kubectl for simple YAML deployments (not rafay_workload).
 # ============================================
 
 # ============================================
@@ -134,8 +135,7 @@ resource "local_file" "cluster_issuer_yaml" {
 }
 
 # Run:AI Ingress
-# Note: No depends_on needed - file is created at plan time
-# The rafay_workload resource has the proper dependencies
+# Creates YAML file for kubectl deployment
 resource "local_file" "runai_ingress_yaml" {
   content = templatefile("${path.module}/templates/runai-ingress.yaml.tpl", {
     cluster_fqdn        = local.cluster_fqdn
@@ -151,58 +151,27 @@ resource "local_file" "runai_ingress_yaml" {
 # Step 4: Deploy cert-manager ClusterIssuer
 # ============================================
 
-# Generate unique version for ClusterIssuer workload
-# Use file() function instead of local_file.content to avoid timing issues
-resource "random_string" "cert_issuer_version" {
-  length  = 8
-  special = false
-  upper   = false
-  keepers = {
-    # Trigger new version when file content changes
-    # Use file() to read at plan time
-    yaml_content = fileexists("${path.module}/cluster-issuer.yaml") ? file("${path.module}/cluster-issuer.yaml") : "pending"
-  }
-}
-
-resource "rafay_workload" "cert_manager_issuer" {
+resource "null_resource" "deploy_cluster_issuer" {
   depends_on = [
+    null_resource.setup,
     local_file.cluster_issuer_yaml,
     local_sensitive_file.kubeconfig
   ]
 
-  metadata {
-    name    = "cert-manager-issuer-${var.cluster_name}"
-    project = var.project_name
+  provisioner "local-exec" {
+    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} apply -f ${local_file.cluster_issuer_yaml.filename}"
+    working_dir = path.module
   }
 
-  timeouts {
-    create = "5m"
-    update = "5m"
-    delete = "5m"
-  }
-
-  spec {
-    namespace = "cert-manager"
-    placement {
-      selector = "rafay.dev/clusterName=${var.cluster_name}"
-    }
-    version = "v-${random_string.cert_issuer_version.result}"
-    artifact {
-      type = "Yaml"
-      artifact {
-        paths {
-          name = "file://cluster-issuer.yaml"
-        }
-      }
-    }
+  triggers = {
+    yaml_sha = sha256(local_file.cluster_issuer_yaml.content)
   }
 }
 
 # ACTIVELY WAIT for ClusterIssuer to be ready
 resource "null_resource" "wait_for_issuer_ready" {
   depends_on = [
-    null_resource.setup,
-    rafay_workload.cert_manager_issuer
+    null_resource.deploy_cluster_issuer
   ]
 
   provisioner "local-exec" {
@@ -213,7 +182,7 @@ resource "null_resource" "wait_for_issuer_ready" {
   }
 
   triggers = {
-    issuer_version = rafay_workload.cert_manager_issuer.spec[0].version
+    yaml_sha = sha256(local_file.cluster_issuer_yaml.content)
   }
 }
 
@@ -331,58 +300,28 @@ resource "helm_release" "runai_cluster" {
 # Step 6: Deploy Run:AI Ingress with TLS
 # ============================================
 
-# Generate unique version for Run:AI ingress workload
-# Use file() function instead of local_file.content to avoid timing issues
-resource "random_string" "runai_ingress_version" {
-  length  = 8
-  special = false
-  upper   = false
-  keepers = {
-    # Trigger new version when file content changes
-    # Use file() to read at plan time, similar to jupyter-notebook pattern
-    yaml_content = fileexists("${path.module}/runai-ingress.yaml") ? file("${path.module}/runai-ingress.yaml") : "pending"
-  }
-}
-
-resource "rafay_workload" "runai_ingress" {
+resource "null_resource" "deploy_runai_ingress" {
   depends_on = [
+    null_resource.setup,
     helm_release.runai_cluster,
-    local_file.runai_ingress_yaml
+    local_file.runai_ingress_yaml,
+    local_sensitive_file.kubeconfig
   ]
 
-  metadata {
-    name    = "runai-ingress-${var.cluster_name}"
-    project = var.project_name
+  provisioner "local-exec" {
+    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} apply -f ${local_file.runai_ingress_yaml.filename}"
+    working_dir = path.module
   }
 
-  timeouts {
-    create = "10m"
-    update = "10m"
-    delete = "5m"
-  }
-
-  spec {
-    namespace = var.namespace
-    placement {
-      selector = "rafay.dev/clusterName=${var.cluster_name}"
-    }
-    version = "v-${random_string.runai_ingress_version.result}"
-    artifact {
-      type = "Yaml"
-      artifact {
-        paths {
-          name = "file://runai-ingress.yaml"
-        }
-      }
-    }
+  triggers = {
+    yaml_sha = sha256(local_file.runai_ingress_yaml.content)
   }
 }
 
 # ACTIVELY WAIT for Certificate to be issued
 resource "null_resource" "wait_for_certificate_ready" {
   depends_on = [
-    null_resource.setup,
-    rafay_workload.runai_ingress
+    null_resource.deploy_runai_ingress
   ]
 
   provisioner "local-exec" {
@@ -394,7 +333,7 @@ resource "null_resource" "wait_for_certificate_ready" {
   }
 
   triggers = {
-    ingress_version = rafay_workload.runai_ingress.spec[0].version
+    yaml_sha = sha256(local_file.runai_ingress_yaml.content)
   }
 }
 

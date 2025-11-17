@@ -26,9 +26,9 @@ terraform {
       source  = "hashicorp/helm"
       version = ">=2.9.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = ">=3.5.0"
+    null = {
+      source  = "hashicorp/null"
+      version = ">=3.2.0"
     }
   }
 }
