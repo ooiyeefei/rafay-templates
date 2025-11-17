@@ -130,12 +130,13 @@ resource "local_file" "cluster_issuer_yaml" {
     cluster_issuer_name = var.cluster_issuer_name
     letsencrypt_email   = var.letsencrypt_email
   })
-  filename        = "${path.module}/cluster-issuer.yaml"
+  filename        = "cluster-issuer.yaml"
   file_permission = "0644"
 }
 
 # Run:AI Ingress
 # Creates YAML file for kubectl deployment
+# Note: This will overwrite any existing runai-ingress.yaml file
 resource "local_file" "runai_ingress_yaml" {
   content = templatefile("${path.module}/templates/runai-ingress.yaml.tpl", {
     cluster_fqdn        = local.cluster_fqdn
@@ -143,8 +144,13 @@ resource "local_file" "runai_ingress_yaml" {
     cluster_issuer_name = var.cluster_issuer_name
     namespace           = var.namespace
   })
-  filename        = "${path.module}/runai-ingress.yaml"
+  filename        = "runai-ingress.yaml"
   file_permission = "0644"
+
+  # Force recreation if content changes
+  lifecycle {
+    create_before_destroy = false
+  }
 }
 
 # ============================================
@@ -159,7 +165,7 @@ resource "null_resource" "deploy_cluster_issuer" {
   ]
 
   provisioner "local-exec" {
-    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} apply -f ${local_file.cluster_issuer_yaml.filename}"
+    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} apply -f cluster-issuer.yaml"
     working_dir = path.module
   }
 
@@ -309,7 +315,18 @@ resource "null_resource" "deploy_runai_ingress" {
   ]
 
   provisioner "local-exec" {
-    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} apply -f ${local_file.runai_ingress_yaml.filename}"
+    command     = <<-EOT
+      echo "Verifying runai-ingress.yaml exists and has content..."
+      if [ ! -f runai-ingress.yaml ]; then
+        echo "ERROR: runai-ingress.yaml not found!"
+        exit 1
+      fi
+      echo "File size: $(wc -c < runai-ingress.yaml) bytes"
+      echo "File content preview:"
+      head -5 runai-ingress.yaml
+      echo "Applying ingress..."
+      ./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} apply -f runai-ingress.yaml
+    EOT
     working_dir = path.module
   }
 
