@@ -53,6 +53,23 @@ if [ ! -f "${JQ}" ]; then
   exit 1
 fi
 
+# Find curl binary (try common locations)
+CURL=""
+for path in /usr/bin/curl /bin/curl /usr/local/bin/curl; do
+  if [ -x "$path" ]; then
+    CURL="$path"
+    break
+  fi
+done
+
+if [ -z "${CURL}" ]; then
+  printf "${RED}ERROR: curl not found in common locations${NC}\n"
+  printf "${RED}Tried: /usr/bin/curl, /bin/curl, /usr/local/bin/curl${NC}\n"
+  exit 1
+fi
+
+printf "${GREEN}Using curl at: ${CURL}${NC}\n"
+
 printf "${GREEN}Configuration:${NC}\n"
 printf "  Control Plane: ${RUNAI_CONTROL_PLANE_URL}\n"
 printf "  App ID: ${RUNAI_APP_ID}\n"
@@ -62,7 +79,7 @@ printf "  Cluster FQDN: ${CLUSTER_FQDN}\n\n"
 # Step 1: Get authentication token
 printf "${GREEN}Step 1: Authenticating with Run:AI Control Plane...${NC}\n"
 
-TOKEN=$(curl -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" \
+TOKEN=$(${CURL} -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" \
   --header "Accept: application/json" \
   --header "Content-Type: application/json" \
   --data-raw "{
@@ -81,7 +98,7 @@ printf "${GREEN}✓ Authentication successful${NC}\n\n"
 # Step 2: Check if cluster already exists
 printf "${GREEN}Step 2: Checking if cluster '${CLUSTER_NAME}' exists...${NC}\n"
 
-EXISTING_CLUSTER_UUID=$(curl -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
+EXISTING_CLUSTER_UUID=$(${CURL} -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
   --header "Accept: application/json" \
   --header "Authorization: Bearer ${TOKEN}" | \
   ${JQ} -r ".[] | select(.name==\"${CLUSTER_NAME}\") | .uuid")
@@ -93,7 +110,7 @@ else
   # Step 3: Create cluster
   printf "${GREEN}Step 3: Creating cluster '${CLUSTER_NAME}'...${NC}\n"
 
-  CREATE_RESPONSE=$(curl -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
+  CREATE_RESPONSE=$(${CURL} -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
     --header "Accept: application/json" \
     --header "Content-Type: application/json" \
     --header "Authorization: Bearer ${TOKEN}" \
@@ -121,7 +138,7 @@ printf "\n"
 # Step 4: Get cluster installation info (including client secret)
 printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 
-INSTALL_INFO=$(curl -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info" \
+INSTALL_INFO=$(${CURL} -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info" \
   --header "Accept: application/json" \
   --header "Authorization: Bearer ${TOKEN}")
 
