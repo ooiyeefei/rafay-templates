@@ -19,6 +19,14 @@ NC='\033[0m' # No Color
 
 printf "${GREEN}=== Run:AI Cluster Creation ===${NC}\n"
 
+# Debug: Show all environment variables
+printf "${YELLOW}DEBUG: Environment check...${NC}\n"
+printf "  RUNAI_CONTROL_PLANE_URL: ${RUNAI_CONTROL_PLANE_URL:-NOT SET}\n"
+printf "  RUNAI_APP_ID: ${RUNAI_APP_ID:-NOT SET}\n"
+printf "  RUNAI_APP_SECRET: ${RUNAI_APP_SECRET:+SET (hidden)}\n"
+printf "  CLUSTER_NAME: ${CLUSTER_NAME:-NOT SET}\n"
+printf "  CLUSTER_FQDN: ${CLUSTER_FQDN:-NOT SET}\n\n"
+
 # Validate required environment variables
 if [ -z "${RUNAI_CONTROL_PLANE_URL}" ]; then
   printf "${RED}ERROR: RUNAI_CONTROL_PLANE_URL not set${NC}\n"
