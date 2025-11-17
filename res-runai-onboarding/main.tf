@@ -152,12 +152,16 @@ resource "local_file" "runai_ingress_yaml" {
 # ============================================
 
 # Generate unique version for ClusterIssuer workload
-resource "random_id" "cert_issuer_version" {
+# Use file() function instead of local_file.content to avoid timing issues
+resource "random_string" "cert_issuer_version" {
+  length  = 8
+  special = false
+  upper   = false
   keepers = {
     # Trigger new version when file content changes
-    file_content = local_file.cluster_issuer_yaml.content
+    # Use file() to read at plan time
+    yaml_content = fileexists("${path.module}/cluster-issuer.yaml") ? file("${path.module}/cluster-issuer.yaml") : "pending"
   }
-  byte_length = 4
 }
 
 resource "rafay_workload" "cert_manager_issuer" {
@@ -182,7 +186,7 @@ resource "rafay_workload" "cert_manager_issuer" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v-${random_id.cert_issuer_version.hex}"
+    version = "v-${random_string.cert_issuer_version.result}"
     artifact {
       type = "Yaml"
       artifact {
@@ -309,15 +313,6 @@ resource "helm_release" "runai_cluster" {
       value = data.local_sensitive_file.runai_client_secret.content
     }
   ]
-
-  # Prevent "inconsistent result" errors when values change from placeholder to real
-  lifecycle {
-    ignore_changes = [
-      metadata[0].revision,
-      metadata[0].values,
-      metadata[0].last_deployed
-    ]
-  }
 }
 
 # ============================================
@@ -325,12 +320,16 @@ resource "helm_release" "runai_cluster" {
 # ============================================
 
 # Generate unique version for Run:AI ingress workload
-resource "random_id" "runai_ingress_version" {
+# Use file() function instead of local_file.content to avoid timing issues
+resource "random_string" "runai_ingress_version" {
+  length  = 8
+  special = false
+  upper   = false
   keepers = {
     # Trigger new version when file content changes
-    file_content = local_file.runai_ingress_yaml.content
+    # Use file() to read at plan time, similar to jupyter-notebook pattern
+    yaml_content = fileexists("${path.module}/runai-ingress.yaml") ? file("${path.module}/runai-ingress.yaml") : "pending"
   }
-  byte_length = 4
 }
 
 resource "rafay_workload" "runai_ingress" {
@@ -355,7 +354,7 @@ resource "rafay_workload" "runai_ingress" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v-${random_id.runai_ingress_version.hex}"
+    version = "v-${random_string.runai_ingress_version.result}"
     artifact {
       type = "Yaml"
       artifact {
@@ -388,94 +387,16 @@ resource "null_resource" "wait_for_certificate_ready" {
 }
 
 # ============================================
-# Cleanup: Delete Run:AI cluster on destroy
+# Cleanup: Use Rafay Terraform Hooks Instead
 # ============================================
-
-resource "null_resource" "delete_runai_cluster" {
-  depends_on = [
-    null_resource.create_runai_cluster,
-    helm_release.runai_cluster
-  ]
-
-  # This runs ONLY during terraform destroy
-  provisioner "local-exec" {
-    when        = destroy
-    working_dir = path.module
-
-    # Pass values as environment variables (accessible during destroy)
-    environment = {
-      CLUSTER_UUID_FILE        = "cluster_uuid.txt"
-      CONTROL_PLANE_URL_FILE   = "control_plane_url.txt"
-    }
-
-    command = <<-EOT
-      #!/usr/bin/env bash
-      set -euo pipefail
-
-      echo "=== Run:AI Cluster Deletion ==="
-
-      # Read values from files (they should still exist during destroy)
-      if [ -f "$CLUSTER_UUID_FILE" ]; then
-        CLUSTER_UUID=$(cat "$CLUSTER_UUID_FILE" || echo "")
-      else
-        CLUSTER_UUID=""
-      fi
-
-      if [ -f "$CONTROL_PLANE_URL_FILE" ]; then
-        CONTROL_PLANE_URL=$(cat "$CONTROL_PLANE_URL_FILE" || echo "")
-      else
-        CONTROL_PLANE_URL=""
-      fi
-
-      # Check for placeholder values
-      if [ "$CLUSTER_UUID" = "placeholder" ] || [ "$CONTROL_PLANE_URL" = "placeholder" ]; then
-        echo "Skipping deletion: placeholder values detected"
-        exit 0
-      fi
-
-      if [ -n "$CLUSTER_UUID" ] && [ -n "$CONTROL_PLANE_URL" ] && \
-         [ -n "$${RUNAI_APP_ID}" ] && [ -n "$${RUNAI_APP_SECRET}" ]; then
-
-        echo "Cluster UUID: $CLUSTER_UUID"
-        echo "Control Plane: $CONTROL_PLANE_URL"
-
-        # Authenticate
-        echo "Step 1: Authenticating..."
-        TOKEN_RESPONSE=$(wget -q -O- \
-          --post-data="{\"grantType\":\"app_token\",\"AppId\":\"$${RUNAI_APP_ID}\",\"AppSecret\":\"$${RUNAI_APP_SECRET}\"}" \
-          --header="Content-Type: application/json" \
-          "https://$CONTROL_PLANE_URL/api/v1/token" 2>&1 || echo "")
-
-        TOKEN=$(echo "$TOKEN_RESPONSE" | ./jq -r '.accessToken // empty' 2>/dev/null || echo "")
-
-        if [ -n "$TOKEN" ]; then
-          echo "✓ Authentication successful"
-          echo "Step 2: Deleting cluster..."
-
-          # Delete cluster with force=true for immediate deletion
-          wget -q -O- \
-            --method=DELETE \
-            --header="Authorization: Bearer $TOKEN" \
-            "https://$CONTROL_PLANE_URL/api/v1/clusters/$CLUSTER_UUID?force=true" \
-            2>/dev/null || echo "Delete request sent"
-
-          echo "✓ Cluster deletion initiated"
-        else
-          echo "Warning: Authentication failed, skipping API cleanup"
-        fi
-      else
-        echo "Skipping Run:AI cluster deletion (missing credentials or UUID)"
-      fi
-
-      echo "=== Cleanup Complete ==="
-    EOT
-  }
-
-  # Trigger on cluster name change to ensure resource is created
-  triggers = {
-    cluster_name = var.cluster_name
-  }
-}
+#
+# NOTE: Cleanup is handled via Rafay Terraform Hooks (not Terraform provisioners)
+#
+# Configure in Rafay UI:
+#   Resource Template → Hooks → Terraform Hooks → Destroy → Add HTTP Hook
+#
+# The hook will call Run:AI API to delete the cluster using outputs from this module.
+# See RAFAY-HOOKS-APPROACH.md for complete configuration guide.
 
 # ============================================
 # Verification Script (Optional)
