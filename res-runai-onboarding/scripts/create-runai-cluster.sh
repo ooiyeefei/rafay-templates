@@ -62,12 +62,12 @@ if [ ! -f "${JQ}" ]; then
 fi
 
 # Find curl binary using command -v (searches entire PATH)
-CURL=$(command -v curl 2>/dev/null)
+CURL=$(command -v curl 2>/dev/null || true)
 
 if [ -z "${CURL}" ]; then
   printf "${RED}ERROR: curl not found in PATH${NC}\n"
   printf "${RED}PATH: ${PATH}${NC}\n"
-  printf "${RED}Available commands: $(ls /usr/bin | grep -E '^(curl|wget)' || echo 'none')${NC}\n"
+  printf "${RED}Available commands: $(ls /usr/bin 2>/dev/null | grep -E '^(curl|wget)' || echo 'none')${NC}\n"
   exit 1
 fi
 
