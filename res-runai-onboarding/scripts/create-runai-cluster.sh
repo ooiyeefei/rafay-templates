@@ -133,7 +133,10 @@ INSTALL_INFO=$(wget -q -O- \
   --header="Authorization: Bearer ${TOKEN}" \
   "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info")
 
-CLIENT_SECRET=$(echo "${INSTALL_INFO}" | ${JQ} -r '.clientSecret')
+# Debug: Show raw response
+printf "${YELLOW}DEBUG: API Response (first 200 chars): ${INSTALL_INFO:0:200}${NC}\n"
+
+CLIENT_SECRET=$(echo "${INSTALL_INFO}" | ${JQ} -r '.clientSecret' 2>&1)
 
 if [ -z "${CLIENT_SECRET}" ] || [ "${CLIENT_SECRET}" == "null" ]; then
   printf "${RED}ERROR: Failed to retrieve client secret${NC}\n"
