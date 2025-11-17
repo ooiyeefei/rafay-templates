@@ -232,7 +232,7 @@ resource "null_resource" "create_runai_cluster" {
   triggers = {
     cluster_name    = var.cluster_name
     cluster_fqdn    = local.cluster_fqdn
-    chart_version   = var.runai_version
+    chart_version   = var.runai_chart_version
     helm_namespace  = var.namespace
     # Force re-run if client_secret.txt contains placeholder or doesn't exist
     force_rerun     = fileexists("${path.module}/client_secret.txt") ? (trimspace(file("${path.module}/client_secret.txt")) == "placeholder" ? timestamp() : sha256(file("${path.module}/client_secret.txt"))) : timestamp()
