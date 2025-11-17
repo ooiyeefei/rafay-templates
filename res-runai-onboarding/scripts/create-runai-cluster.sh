@@ -128,13 +128,17 @@ printf "\n"
 # Step 4: Get cluster installation info (including client secret)
 printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 
-# Try to get installation info (capture both output and errors)
+# Temporarily disable exit-on-error to capture the full response
+set +e
 INSTALL_INFO=$(wget -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
   "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}/cluster-install-info" 2>&1)
+WGET_EXIT=$?
+set -e
 
-# Debug: Show raw response
+# Debug: Show raw response regardless of success/failure
+printf "${YELLOW}DEBUG: wget exit code: ${WGET_EXIT}${NC}\n"
 printf "${YELLOW}DEBUG: Full API Response:${NC}\n${INSTALL_INFO}\n\n"
 
 # Try to parse client secret
