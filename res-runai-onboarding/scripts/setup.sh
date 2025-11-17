@@ -3,6 +3,21 @@ set -e
 
 echo "=== Setting up required tools ==="
 
+# Download curl (for API calls in create-runai-cluster.sh)
+if [ ! -f "./curl" ]; then
+  echo "[+] Downloading curl binary..."
+  wget -q https://github.com/moparisthebest/static-curl/releases/download/v8.11.1/curl-amd64 -O curl
+  if [ $? -eq 0 ]; then
+    echo "[+] Successfully downloaded curl binary"
+    chmod +x ./curl
+  else
+    echo "[-] Failed to download curl"
+    exit 1
+  fi
+else
+  echo "[+] curl already exists, skipping download"
+fi
+
 # Download jq (for JSON parsing in create-runai-cluster.sh)
 if [ ! -f "./jq" ]; then
   echo "[+] Downloading jq binary..."

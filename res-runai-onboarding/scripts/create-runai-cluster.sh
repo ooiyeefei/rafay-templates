@@ -45,7 +45,14 @@ if [ -z "${CLUSTER_FQDN}" ]; then
   exit 1
 fi
 
-# Use locally downloaded jq binary (downloaded by setup.sh)
+# Use locally downloaded binaries (downloaded by setup.sh)
+CURL="./curl"
+if [ ! -f "${CURL}" ]; then
+  printf "${RED}ERROR: curl binary not found at ${CURL}${NC}\n"
+  printf "${RED}Run setup.sh first to download required tools${NC}\n"
+  exit 1
+fi
+
 JQ="./jq"
 if [ ! -f "${JQ}" ]; then
   printf "${RED}ERROR: jq binary not found at ${JQ}${NC}\n"
@@ -62,7 +69,7 @@ printf "  Cluster FQDN: ${CLUSTER_FQDN}\n\n"
 # Step 1: Get authentication token
 printf "${GREEN}Step 1: Authenticating with Run:AI Control Plane...${NC}\n"
 
-TOKEN=$(curl -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" \
+TOKEN=$(${CURL} -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" \
   --header "Accept: application/json" \
   --header "Content-Type: application/json" \
   --data-raw "{
@@ -81,7 +88,7 @@ printf "${GREEN}✓ Authentication successful${NC}\n\n"
 # Step 2: Check if cluster already exists
 printf "${GREEN}Step 2: Checking if cluster '${CLUSTER_NAME}' exists...${NC}\n"
 
-EXISTING_CLUSTER_UUID=$(curl -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
+EXISTING_CLUSTER_UUID=$(${CURL} -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
   --header "Accept: application/json" \
   --header "Authorization: Bearer ${TOKEN}" | \
   ${JQ} -r ".[] | select(.name==\"${CLUSTER_NAME}\") | .uuid")
@@ -93,7 +100,7 @@ else
   # Step 3: Create cluster
   printf "${GREEN}Step 3: Creating cluster '${CLUSTER_NAME}'...${NC}\n"
 
-  CREATE_RESPONSE=$(curl -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
+  CREATE_RESPONSE=$(${CURL} -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
     --header "Accept: application/json" \
     --header "Content-Type: application/json" \
     --header "Authorization: Bearer ${TOKEN}" \
@@ -121,7 +128,7 @@ printf "\n"
 # Step 4: Get cluster installation info (including client secret)
 printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 
-INSTALL_INFO=$(curl -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info" \
+INSTALL_INFO=$(${CURL} -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info" \
   --header "Accept: application/json" \
   --header "Authorization: Bearer ${TOKEN}")
 

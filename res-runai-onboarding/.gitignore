@@ -12,6 +12,7 @@ kubeconfig.yaml
 # This prevents "file not found" errors during Rafay provider refresh
 
 # Downloaded binaries (from setup.sh)
+curl
 jq
 kubectl
 
