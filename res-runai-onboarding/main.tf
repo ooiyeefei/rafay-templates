@@ -129,27 +129,36 @@ resource "local_file" "cluster_issuer_yaml" {
     cluster_issuer_name = var.cluster_issuer_name
     letsencrypt_email   = var.letsencrypt_email
   })
-  filename = "${path.module}/cluster-issuer.yaml"
+  filename        = "cluster-issuer.yaml"
+  file_permission = "0644"
 }
 
 # Run:AI Ingress
+# Note: No depends_on needed - file is created at plan time
+# The rafay_workload resource has the proper dependencies
 resource "local_file" "runai_ingress_yaml" {
-  depends_on = [
-    time_sleep.wait_for_dns
-  ]
-
   content = templatefile("${path.module}/templates/runai-ingress.yaml.tpl", {
     cluster_fqdn        = local.cluster_fqdn
     tls_secret_name     = local.tls_secret_name
     cluster_issuer_name = var.cluster_issuer_name
     namespace           = var.namespace
   })
-  filename = "${path.module}/runai-ingress.yaml"
+  filename        = "runai-ingress.yaml"
+  file_permission = "0644"
 }
 
 # ============================================
 # Step 4: Deploy cert-manager ClusterIssuer
 # ============================================
+
+# Generate unique version for ClusterIssuer workload
+resource "random_id" "cert_issuer_version" {
+  keepers = {
+    # Trigger new version when file content changes
+    file_content = local_file.cluster_issuer_yaml.content
+  }
+  byte_length = 4
+}
 
 resource "rafay_workload" "cert_manager_issuer" {
   depends_on = [
@@ -173,7 +182,7 @@ resource "rafay_workload" "cert_manager_issuer" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v1"
+    version = "v-${random_id.cert_issuer_version.hex}"
     artifact {
       type = "Yaml"
       artifact {
@@ -304,6 +313,15 @@ resource "helm_release" "runai_cluster" {
 # Step 6: Deploy Run:AI Ingress with TLS
 # ============================================
 
+# Generate unique version for Run:AI ingress workload
+resource "random_id" "runai_ingress_version" {
+  keepers = {
+    # Trigger new version when file content changes
+    file_content = local_file.runai_ingress_yaml.content
+  }
+  byte_length = 4
+}
+
 resource "rafay_workload" "runai_ingress" {
   depends_on = [
     helm_release.runai_cluster,
@@ -326,7 +344,7 @@ resource "rafay_workload" "runai_ingress" {
     placement {
       selector = "rafay.dev/clusterName=${var.cluster_name}"
     }
-    version = "v1"
+    version = "v-${random_id.runai_ingress_version.hex}"
     artifact {
       type = "Yaml"
       artifact {

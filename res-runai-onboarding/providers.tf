@@ -26,6 +26,10 @@ terraform {
       source  = "hashicorp/helm"
       version = ">=2.9.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = ">=3.5.0"
+    }
   }
 }
 
@@ -54,3 +58,8 @@ provider "helm" {
     cluster_ca_certificate = base64decode(local.certificate_authority_data)
   }
 }
+
+# Rafay provider configuration should be set via environment variables:
+# RAFAY_API_KEY
+# RAFAY_REST_ENDPOINT
+# RAFAY_PROJECT
