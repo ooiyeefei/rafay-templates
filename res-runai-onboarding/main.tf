@@ -230,12 +230,10 @@ resource "null_resource" "create_runai_cluster" {
   }
 
   triggers = {
-    cluster_name    = var.cluster_name
-    cluster_fqdn    = local.cluster_fqdn
-    chart_version   = var.runai_chart_version
-    helm_namespace  = var.namespace
-    # Force re-run if client_secret.txt contains placeholder or doesn't exist
-    force_rerun     = fileexists("${path.module}/client_secret.txt") ? (trimspace(file("${path.module}/client_secret.txt")) == "placeholder" ? timestamp() : sha256(file("${path.module}/client_secret.txt"))) : timestamp()
+    cluster_name   = var.cluster_name
+    cluster_fqdn   = local.cluster_fqdn
+    chart_version  = var.runai_chart_version
+    helm_namespace = var.namespace
   }
 }
 
@@ -311,6 +309,15 @@ resource "helm_release" "runai_cluster" {
       value = data.local_sensitive_file.runai_client_secret.content
     }
   ]
+
+  # Prevent "inconsistent result" errors when values change from placeholder to real
+  lifecycle {
+    ignore_changes = [
+      metadata[0].revision,
+      metadata[0].values,
+      metadata[0].last_deployed
+    ]
+  }
 }
 
 # ============================================
@@ -377,6 +384,81 @@ resource "null_resource" "wait_for_certificate_ready" {
 
   triggers = {
     ingress_version = rafay_workload.runai_ingress.spec[0].version
+  }
+}
+
+# ============================================
+# Cleanup: Delete Run:AI cluster on destroy
+# ============================================
+
+resource "null_resource" "delete_runai_cluster" {
+  depends_on = [
+    null_resource.create_runai_cluster,
+    helm_release.runai_cluster
+  ]
+
+  # This runs ONLY during terraform destroy
+  # IMPORTANT: We inline the script to ensure it's available during destroy
+  provisioner "local-exec" {
+    when        = destroy
+    working_dir = path.module
+    command     = <<-EOT
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      echo "=== Run:AI Cluster Deletion ==="
+
+      # Access stored values from triggers (available during destroy via self.triggers)
+      CLUSTER_UUID="${self.triggers.cluster_uuid}"
+      CONTROL_PLANE_URL="${self.triggers.control_plane_url}"
+
+      if [[ -n "$CLUSTER_UUID" ]] && [[ -n "$CONTROL_PLANE_URL" ]] && \
+         [[ -n "${RUNAI_APP_ID:-}" ]] && [[ -n "${RUNAI_APP_SECRET:-}" ]]; then
+
+        echo "Cluster UUID: $CLUSTER_UUID"
+        echo "Control Plane: $CONTROL_PLANE_URL"
+
+        # Authenticate
+        echo "Step 1: Authenticating..."
+        TOKEN_RESPONSE=$(wget -q -O- \
+          --post-data="{\"grantType\":\"app_token\",\"AppId\":\"${RUNAI_APP_ID}\",\"AppSecret\":\"${RUNAI_APP_SECRET}\"}" \
+          --header="Content-Type: application/json" \
+          "https://$CONTROL_PLANE_URL/api/v1/token" 2>&1 || echo "")
+
+        TOKEN=$(echo "$TOKEN_RESPONSE" | ./jq -r '.accessToken // empty' 2>/dev/null || echo "")
+
+        if [[ -n "$TOKEN" ]]; then
+          echo "✓ Authentication successful"
+          echo "Step 2: Deleting cluster..."
+
+          # Delete cluster with force=true for immediate deletion
+          wget -q -O- \
+            --method=DELETE \
+            --header="Authorization: Bearer $TOKEN" \
+            "https://$CONTROL_PLANE_URL/api/v1/clusters/$CLUSTER_UUID?force=true" \
+            2>/dev/null || echo "Delete request sent"
+
+          echo "✓ Cluster deletion initiated"
+        else
+          echo "Warning: Authentication failed, skipping API cleanup"
+        fi
+      else
+        echo "Skipping Run:AI cluster deletion (missing credentials or UUID)"
+      fi
+
+      echo "=== Cleanup Complete ==="
+    EOT
+
+    # Environment variables automatically inherited from Rafay Config Context:
+    # - RUNAI_APP_ID
+    # - RUNAI_APP_SECRET
+  }
+
+  # Store values in triggers so they're available during destroy via self.triggers
+  triggers = {
+    cluster_uuid        = try(data.local_file.runai_cluster_uuid.content, "placeholder")
+    control_plane_url   = try(data.local_file.runai_control_plane_url.content, "placeholder")
+    # These values are captured at creation time and available during destroy
   }
 }
 
