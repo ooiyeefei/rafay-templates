@@ -130,14 +130,18 @@ printf "\n"
 # Step 4: Get cluster installation info (including client secret)
 printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 
-# Per official docs: https://run-ai-docs.nvidia.com/multi-tenant/organization-life-cycle/organization-onboarding/create-and-install-clusters
-# Endpoint is /v1/clusters/{clusterUuid}/cluster-install-info (NO /api/ prefix!)
-printf "${YELLOW}Using endpoint: /v1/clusters/${CLUSTER_UUID}/cluster-install-info${NC}\n"
+# Per official API docs: https://api-docs.run.ai/latest/tag/Clusters#operation/get_cluster_install_info_by_uuid
+# Requires query parameters: version (required) and remoteClusterUrl (optional)
+# Note: Using version 2.18 (latest stable as of Nov 2024)
+CLUSTER_VERSION="2.18"
+ENCODED_URL=$(echo "https://${CLUSTER_FQDN}" | sed 's/:/%3A/g' | sed 's/\//%2F/g')
+
+printf "${YELLOW}Using endpoint: /v1/clusters/${CLUSTER_UUID}/cluster-install-info?version=${CLUSTER_VERSION}&remoteClusterUrl=${ENCODED_URL}${NC}\n"
 
 INSTALL_INFO=$(wget -q -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info")
+  "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info?version=${CLUSTER_VERSION}&remoteClusterUrl=${ENCODED_URL}")
 
 # Debug: Show response
 printf "${YELLOW}DEBUG: API Response:${NC}\n${INSTALL_INFO}\n\n"
