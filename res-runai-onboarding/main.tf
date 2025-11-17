@@ -129,7 +129,7 @@ resource "local_file" "cluster_issuer_yaml" {
     cluster_issuer_name = var.cluster_issuer_name
     letsencrypt_email   = var.letsencrypt_email
   })
-  filename        = "cluster-issuer.yaml"
+  filename        = "${path.module}/cluster-issuer.yaml"
   file_permission = "0644"
 }
 
@@ -143,7 +143,7 @@ resource "local_file" "runai_ingress_yaml" {
     cluster_issuer_name = var.cluster_issuer_name
     namespace           = var.namespace
   })
-  filename        = "runai-ingress.yaml"
+  filename        = "${path.module}/runai-ingress.yaml"
   file_permission = "0644"
 }
 
