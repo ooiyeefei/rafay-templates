@@ -36,8 +36,10 @@ resource "null_resource" "setup" {
   }
 
   triggers = {
-    # Only run setup once per directory
-    setup_version = "1.0"
+    # Run setup on every apply to ensure binaries are always available
+    # This is necessary because Rafay Environment Manager may clean up
+    # the workspace between runs
+    always_run = timestamp()
   }
 }
 
