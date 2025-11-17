@@ -17,7 +17,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
 
     # WebSocket support (if needed by Run:AI)
-    nginx.ingress.kubernetes.io/websocket-services: "runai-cluster-ingress"
+    nginx.ingress.kubernetes.io/websocket-services: "researcher-service"
 spec:
   ingressClassName: nginx
 
@@ -31,12 +31,12 @@ spec:
   - host: ${cluster_fqdn}
     http:
       paths:
-      # Route all traffic to Run:AI cluster ingress service
+      # Route all traffic to Run:AI researcher service (main UI/API)
       - path: /
         pathType: Prefix
         backend:
           service:
-            # This service is created by the Run:AI Helm chart
-            name: runai-cluster-ingress
+            # researcher-service is the main user-facing service created by Run:AI Helm chart
+            name: researcher-service
             port:
-              number: 443
+              number: 4180
