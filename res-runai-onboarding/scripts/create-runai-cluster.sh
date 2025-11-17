@@ -134,14 +134,18 @@ printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 # Requires query parameters: version (required) and remoteClusterUrl (optional)
 # Note: Using version 2.18 (latest stable as of Nov 2024)
 CLUSTER_VERSION="2.18"
-ENCODED_URL=$(echo "https://${CLUSTER_FQDN}" | sed 's/:/%3A/g' | sed 's/\//%2F/g')
 
-printf "${YELLOW}Using endpoint: /v1/clusters/${CLUSTER_UUID}/cluster-install-info?version=${CLUSTER_VERSION}&remoteClusterUrl=${ENCODED_URL}${NC}\n"
+# URL encode the cluster URL properly using printf
+# https://try63524gpu01.runai.langgoose.com becomes https%3A%2F%2Ftry63524gpu01.runai.langgoose.com
+CLUSTER_URL="https://${CLUSTER_FQDN}"
+ENCODED_URL=$(printf '%s' "$CLUSTER_URL" | ${JQ} -sRr @uri)
+
+printf "${YELLOW}Using endpoint: /api/v1/clusters/${CLUSTER_UUID}/cluster-install-info?version=${CLUSTER_VERSION}&remoteClusterUrl=${ENCODED_URL}${NC}\n"
 
 INSTALL_INFO=$(wget -q -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info?version=${CLUSTER_VERSION}&remoteClusterUrl=${ENCODED_URL}")
+  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}/cluster-install-info?version=${CLUSTER_VERSION}&remoteClusterUrl=${ENCODED_URL}")
 
 # Debug: Show response
 printf "${YELLOW}DEBUG: API Response:${NC}\n${INSTALL_INFO}\n\n"
