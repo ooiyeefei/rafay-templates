@@ -3,7 +3,7 @@ set -e
 
 echo "=== Setting up required tools ==="
 
-# Note: wget is available in Rafay execution container (used for HTTP requests)
+# Note: BusyBox wget is available in Rafay execution container (used for HTTP requests)
 
 # Download jq (for JSON parsing in create-runai-cluster.sh)
 if [ ! -f "./jq" ]; then

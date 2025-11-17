@@ -61,7 +61,7 @@ if [ ! -f "${JQ}" ]; then
   exit 1
 fi
 
-printf "${GREEN}Using wget for HTTP requests (available in Rafay container)${NC}\n"
+printf "${GREEN}Using BusyBox wget for HTTP requests (available in Rafay container)${NC}\n"
 printf "${GREEN}Using jq: ${JQ}${NC}\n"
 
 printf "${GREEN}Configuration:${NC}\n"
@@ -73,14 +73,10 @@ printf "  Cluster FQDN: ${CLUSTER_FQDN}\n\n"
 # Step 1: Get authentication token
 printf "${GREEN}Step 1: Authenticating with Run:AI Control Plane...${NC}\n"
 
-TOKEN=$(wget -q -O- --method=POST \
+TOKEN=$(wget -q -O- \
   --header="Accept: application/json" \
   --header="Content-Type: application/json" \
-  --body-data="{
-    \"grantType\": \"client_credentials\",
-    \"clientId\": \"${RUNAI_APP_ID}\",
-    \"clientSecret\": \"${RUNAI_APP_SECRET}\"
-  }" \
+  --post-data="{\"grantType\":\"client_credentials\",\"clientId\":\"${RUNAI_APP_ID}\",\"clientSecret\":\"${RUNAI_APP_SECRET}\"}" \
   "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" | ${JQ} -r '.accessToken')
 
 if [ -z "${TOKEN}" ] || [ "${TOKEN}" == "null" ]; then
@@ -106,14 +102,11 @@ else
   # Step 3: Create cluster
   printf "${GREEN}Step 3: Creating cluster '${CLUSTER_NAME}'...${NC}\n"
 
-  CREATE_RESPONSE=$(wget -q -O- --method=POST \
+  CREATE_RESPONSE=$(wget -q -O- \
     --header="Accept: application/json" \
     --header="Content-Type: application/json" \
     --header="Authorization: Bearer ${TOKEN}" \
-    --body-data="{
-      \"name\": \"${CLUSTER_NAME}\",
-      \"domain\": \"https://${CLUSTER_FQDN}\"
-    }" \
+    --post-data="{\"name\":\"${CLUSTER_NAME}\",\"domain\":\"https://${CLUSTER_FQDN}\"}" \
     "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters")
 
   CLUSTER_UUID=$(echo "${CREATE_RESPONSE}" | ${JQ} -r '.uuid')
