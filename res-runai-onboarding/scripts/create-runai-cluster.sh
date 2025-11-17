@@ -45,9 +45,11 @@ if [ -z "${CLUSTER_FQDN}" ]; then
   exit 1
 fi
 
-# Ensure jq is available
-if ! command -v jq &> /dev/null; then
-  printf "${RED}ERROR: jq is not installed${NC}\n"
+# Use locally downloaded jq binary (downloaded by setup.sh)
+JQ="./jq"
+if [ ! -f "${JQ}" ]; then
+  printf "${RED}ERROR: jq binary not found at ${JQ}${NC}\n"
+  printf "${RED}Run setup.sh first to download required tools${NC}\n"
   exit 1
 fi
 
@@ -67,7 +69,7 @@ TOKEN=$(curl -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" \
     \"grantType\": \"app_token\",
     \"AppId\": \"${RUNAI_APP_ID}\",
     \"AppSecret\": \"${RUNAI_APP_SECRET}\"
-  }" | jq -r '.accessToken')
+  }" | ${JQ} -r '.accessToken')
 
 if [ -z "${TOKEN}" ] || [ "${TOKEN}" == "null" ]; then
   printf "${RED}ERROR: Failed to authenticate with Run:AI Control Plane${NC}\n"
@@ -82,7 +84,7 @@ printf "${GREEN}Step 2: Checking if cluster '${CLUSTER_NAME}' exists...${NC}\n"
 EXISTING_CLUSTER_UUID=$(curl -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
   --header "Accept: application/json" \
   --header "Authorization: Bearer ${TOKEN}" | \
-  jq -r ".[] | select(.name==\"${CLUSTER_NAME}\") | .uuid")
+  ${JQ} -r ".[] | select(.name==\"${CLUSTER_NAME}\") | .uuid")
 
 if [ -n "${EXISTING_CLUSTER_UUID}" ] && [ "${EXISTING_CLUSTER_UUID}" != "null" ]; then
   printf "${YELLOW}Cluster already exists with UUID: ${EXISTING_CLUSTER_UUID}${NC}\n"
@@ -100,7 +102,7 @@ else
       \"domain\": \"https://${CLUSTER_FQDN}\"
     }")
 
-  CLUSTER_UUID=$(echo "${CREATE_RESPONSE}" | jq -r '.uuid')
+  CLUSTER_UUID=$(echo "${CREATE_RESPONSE}" | ${JQ} -r '.uuid')
 
   if [ -z "${CLUSTER_UUID}" ] || [ "${CLUSTER_UUID}" == "null" ]; then
     printf "${RED}ERROR: Failed to create cluster${NC}\n"
@@ -123,7 +125,7 @@ INSTALL_INFO=$(curl -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${
   --header "Accept: application/json" \
   --header "Authorization: Bearer ${TOKEN}")
 
-CLIENT_SECRET=$(echo "${INSTALL_INFO}" | jq -r '.clientSecret')
+CLIENT_SECRET=$(echo "${INSTALL_INFO}" | ${JQ} -r '.clientSecret')
 
 if [ -z "${CLIENT_SECRET}" ] || [ "${CLIENT_SECRET}" == "null" ]; then
   printf "${RED}ERROR: Failed to retrieve client secret${NC}\n"
@@ -138,9 +140,9 @@ echo -n "${CLIENT_SECRET}" > client_secret.txt
 echo -n "${RUNAI_CONTROL_PLANE_URL}" > control_plane_url.txt
 
 # Optional: Extract other useful info
-INSTALLATION_STR=$(echo "${INSTALL_INFO}" | jq -r '.installationStr // empty')
-CHART_REPO_URL=$(echo "${INSTALL_INFO}" | jq -r '.chartRepoURL // empty')
-REPOSITORY_NAME=$(echo "${INSTALL_INFO}" | jq -r '.repositoryName // empty')
+INSTALLATION_STR=$(echo "${INSTALL_INFO}" | ${JQ} -r '.installationStr // empty')
+CHART_REPO_URL=$(echo "${INSTALL_INFO}" | ${JQ} -r '.chartRepoURL // empty')
+REPOSITORY_NAME=$(echo "${INSTALL_INFO}" | ${JQ} -r '.repositoryName // empty')
 
 if [ -n "${INSTALLATION_STR}" ]; then
   printf "\n${GREEN}Installation string:${NC}\n${INSTALLATION_STR}\n"

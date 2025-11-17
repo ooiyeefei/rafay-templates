@@ -25,6 +25,23 @@ data "rafay_download_kubeconfig" "cluster" {
 }
 
 # ============================================
+# Setup: Download Required Tools
+# ============================================
+
+# Download jq and kubectl binaries (similar to runai/ folder pattern)
+resource "null_resource" "setup" {
+  provisioner "local-exec" {
+    command     = "bash ${path.module}/scripts/setup.sh"
+    working_dir = path.module
+  }
+
+  triggers = {
+    # Only run setup once per directory
+    setup_version = "1.0"
+  }
+}
+
+# ============================================
 # Local Variables and Data Processing
 # ============================================
 
@@ -167,12 +184,16 @@ resource "rafay_workload" "cert_manager_issuer" {
 
 # ACTIVELY WAIT for ClusterIssuer to be ready
 resource "null_resource" "wait_for_issuer_ready" {
-  depends_on = [rafay_workload.cert_manager_issuer]
+  depends_on = [
+    null_resource.setup,
+    rafay_workload.cert_manager_issuer
+  ]
 
   provisioner "local-exec" {
     # This command will poll for up to 2 minutes and only succeed when the issuer is ready.
-    # It requires kubectl to be installed on the Terraform agent.
-    command = "kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} wait --for=condition=Ready clusterissuer/${var.cluster_issuer_name} --timeout=120s"
+    # Uses locally downloaded kubectl binary (from setup.sh).
+    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} wait --for=condition=Ready clusterissuer/${var.cluster_issuer_name} --timeout=120s"
+    working_dir = path.module
   }
 
   triggers = {
@@ -186,6 +207,7 @@ resource "null_resource" "wait_for_issuer_ready" {
 
 resource "null_resource" "create_runai_cluster" {
   depends_on = [
+    null_resource.setup,
     time_sleep.wait_for_dns
   ]
 
@@ -320,12 +342,17 @@ resource "rafay_workload" "runai_ingress" {
 
 # ACTIVELY WAIT for Certificate to be issued
 resource "null_resource" "wait_for_certificate_ready" {
-  depends_on = [rafay_workload.runai_ingress]
+  depends_on = [
+    null_resource.setup,
+    rafay_workload.runai_ingress
+  ]
 
   provisioner "local-exec" {
     # This command polls for up to 5 minutes for the certificate to be issued and ready
     # cert-manager will handle the HTTP-01 challenge and ACME communication
-    command = "kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} wait --for=condition=Ready certificate/${local.tls_secret_name} -n ${var.namespace} --timeout=300s"
+    # Uses locally downloaded kubectl binary (from setup.sh).
+    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} wait --for=condition=Ready certificate/${local.tls_secret_name} -n ${var.namespace} --timeout=300s"
+    working_dir = path.module
   }
 
   triggers = {
