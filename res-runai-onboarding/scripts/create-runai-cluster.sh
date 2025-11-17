@@ -131,7 +131,7 @@ printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 INSTALL_INFO=$(wget -q -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info")
+  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}/cluster-install-info")
 
 # Debug: Show raw response
 printf "${YELLOW}DEBUG: API Response (first 200 chars): ${INSTALL_INFO:0:200}${NC}\n"
