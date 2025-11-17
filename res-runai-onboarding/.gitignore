@@ -7,9 +7,13 @@ control_plane_url.txt
 /tmp/kubeconfig-*
 kubeconfig.yaml
 
-# Generated YAML files
-cluster-issuer.yaml
-runai-ingress.yaml
+# NOTE: cluster-issuer.yaml and runai-ingress.yaml are committed as placeholders
+# They are overwritten by local_file resources during apply
+# This prevents "file not found" errors during Rafay provider refresh
+
+# Downloaded binaries (from setup.sh)
+jq
+kubectl
 
 # Terraform files
 *.tfstate

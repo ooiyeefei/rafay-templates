@@ -1,0 +1,42 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: runai-cluster-ingress
+  namespace: runai
+  annotations:
+    # Tell cert-manager to issue a certificate for this Ingress
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # NGINX-specific annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # Increase timeouts for long-running operations
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+
+    # WebSocket support (if needed by Run:AI)
+    nginx.ingress.kubernetes.io/websocket-services: "runai-cluster-ingress"
+spec:
+  ingressClassName: nginx
+
+  tls:
+  - hosts:
+    - placeholder.runai.langgoose.com
+    # cert-manager will create this secret automatically
+    secretName: runai-tls-placeholder
+
+  rules:
+  - host: placeholder.runai.langgoose.com
+    http:
+      paths:
+      # Route all traffic to Run:AI cluster ingress service
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            # This service is created by the Run:AI Helm chart
+            name: runai-cluster-ingress
+            port:
+              number: 443
