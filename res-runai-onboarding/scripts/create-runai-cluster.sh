@@ -128,15 +128,17 @@ printf "\n"
 # Step 4: Get cluster installation info (including client secret)
 printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 
-INSTALL_INFO=$(wget -q -O- \
+# Try to get installation info (capture both output and errors)
+INSTALL_INFO=$(wget -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}/cluster-install-info")
+  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}/cluster-install-info" 2>&1)
 
 # Debug: Show raw response
-printf "${YELLOW}DEBUG: API Response (first 200 chars): ${INSTALL_INFO:0:200}${NC}\n"
+printf "${YELLOW}DEBUG: Full API Response:${NC}\n${INSTALL_INFO}\n\n"
 
-CLIENT_SECRET=$(echo "${INSTALL_INFO}" | ${JQ} -r '.clientSecret' 2>&1)
+# Try to parse client secret
+CLIENT_SECRET=$(echo "${INSTALL_INFO}" | ${JQ} -r '.clientSecret' 2>/dev/null || echo "")
 
 if [ -z "${CLIENT_SECRET}" ] || [ "${CLIENT_SECRET}" == "null" ]; then
   printf "${RED}ERROR: Failed to retrieve client secret${NC}\n"
