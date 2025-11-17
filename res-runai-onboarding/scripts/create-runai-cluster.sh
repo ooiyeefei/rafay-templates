@@ -109,6 +109,8 @@ else
     --post-data="{\"name\":\"${CLUSTER_NAME}\",\"domain\":\"https://${CLUSTER_FQDN}\"}" \
     "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters")
 
+  printf "${YELLOW}DEBUG: Cluster creation response:${NC}\n${CREATE_RESPONSE}\n\n"
+
   CLUSTER_UUID=$(echo "${CREATE_RESPONSE}" | ${JQ} -r '.uuid')
 
   if [ -z "${CLUSTER_UUID}" ] || [ "${CLUSTER_UUID}" == "null" ]; then
@@ -128,18 +130,17 @@ printf "\n"
 # Step 4: Get cluster installation info (including client secret)
 printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 
-# Temporarily disable exit-on-error to capture the full response
-set +e
-INSTALL_INFO=$(wget -O- \
+# Per official docs: https://run-ai-docs.nvidia.com/multi-tenant/organization-life-cycle/organization-onboarding/create-and-install-clusters
+# Endpoint is /v1/clusters/{clusterUuid}/cluster-install-info (NO /api/ prefix!)
+printf "${YELLOW}Using endpoint: /v1/clusters/${CLUSTER_UUID}/cluster-install-info${NC}\n"
+
+INSTALL_INFO=$(wget -q -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}/cluster-install-info" 2>&1)
-WGET_EXIT=$?
-set -e
+  "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info")
 
-# Debug: Show raw response regardless of success/failure
-printf "${YELLOW}DEBUG: wget exit code: ${WGET_EXIT}${NC}\n"
-printf "${YELLOW}DEBUG: Full API Response:${NC}\n${INSTALL_INFO}\n\n"
+# Debug: Show response
+printf "${YELLOW}DEBUG: API Response:${NC}\n${INSTALL_INFO}\n\n"
 
 # Try to parse client secret
 CLIENT_SECRET=$(echo "${INSTALL_INFO}" | ${JQ} -r '.clientSecret' 2>/dev/null || echo "")
