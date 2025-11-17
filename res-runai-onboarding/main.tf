@@ -31,7 +31,8 @@ data "rafay_download_kubeconfig" "cluster" {
 # Download jq and kubectl binaries (similar to runai/ folder pattern)
 resource "null_resource" "setup" {
   provisioner "local-exec" {
-    command     = "bash ${path.module}/scripts/setup.sh"
+    interpreter = ["/bin/bash", "-c"]
+    command     = "chmod +x ./scripts/setup.sh; ./scripts/setup.sh"
     working_dir = path.module
   }
 
@@ -214,7 +215,8 @@ resource "null_resource" "create_runai_cluster" {
   ]
 
   provisioner "local-exec" {
-    command     = "bash ${path.module}/scripts/create-runai-cluster.sh"
+    interpreter = ["/bin/bash", "-c"]
+    command     = "chmod +x ./scripts/create-runai-cluster.sh; ./scripts/create-runai-cluster.sh"
     working_dir = path.module
     environment = {
       # RUNAI_CONTROL_PLANE_URL, RUNAI_APP_ID, RUNAI_APP_SECRET
