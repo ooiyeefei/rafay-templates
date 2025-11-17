@@ -53,18 +53,13 @@ if [ ! -f "${JQ}" ]; then
   exit 1
 fi
 
-# Find curl binary (try common locations)
-CURL=""
-for path in /usr/bin/curl /bin/curl /usr/local/bin/curl; do
-  if [ -x "$path" ]; then
-    CURL="$path"
-    break
-  fi
-done
+# Find curl binary using command -v (searches entire PATH)
+CURL=$(command -v curl 2>/dev/null)
 
 if [ -z "${CURL}" ]; then
-  printf "${RED}ERROR: curl not found in common locations${NC}\n"
-  printf "${RED}Tried: /usr/bin/curl, /bin/curl, /usr/local/bin/curl${NC}\n"
+  printf "${RED}ERROR: curl not found in PATH${NC}\n"
+  printf "${RED}PATH: ${PATH}${NC}\n"
+  printf "${RED}Available commands: $(ls /usr/bin | grep -E '^(curl|wget)' || echo 'none')${NC}\n"
   exit 1
 fi
 
