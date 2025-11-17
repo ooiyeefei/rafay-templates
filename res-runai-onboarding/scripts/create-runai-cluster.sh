@@ -61,17 +61,8 @@ if [ ! -f "${JQ}" ]; then
   exit 1
 fi
 
-# Find curl binary using command -v (searches entire PATH)
-CURL=$(command -v curl 2>/dev/null || true)
-
-if [ -z "${CURL}" ]; then
-  printf "${RED}ERROR: curl not found in PATH${NC}\n"
-  printf "${RED}PATH: ${PATH}${NC}\n"
-  printf "${RED}Available commands: $(ls /usr/bin 2>/dev/null | grep -E '^(curl|wget)' || echo 'none')${NC}\n"
-  exit 1
-fi
-
-printf "${GREEN}Using curl at: ${CURL}${NC}\n"
+printf "${GREEN}Using wget for HTTP requests (available in Rafay container)${NC}\n"
+printf "${GREEN}Using jq: ${JQ}${NC}\n"
 
 printf "${GREEN}Configuration:${NC}\n"
 printf "  Control Plane: ${RUNAI_CONTROL_PLANE_URL}\n"
@@ -82,14 +73,15 @@ printf "  Cluster FQDN: ${CLUSTER_FQDN}\n\n"
 # Step 1: Get authentication token
 printf "${GREEN}Step 1: Authenticating with Run:AI Control Plane...${NC}\n"
 
-TOKEN=$(${CURL} -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" \
-  --header "Accept: application/json" \
-  --header "Content-Type: application/json" \
-  --data-raw "{
+TOKEN=$(wget -q -O- --method=POST \
+  --header="Accept: application/json" \
+  --header="Content-Type: application/json" \
+  --body-data="{
     \"grantType\": \"client_credentials\",
     \"clientId\": \"${RUNAI_APP_ID}\",
     \"clientSecret\": \"${RUNAI_APP_SECRET}\"
-  }" | ${JQ} -r '.accessToken')
+  }" \
+  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/token" | ${JQ} -r '.accessToken')
 
 if [ -z "${TOKEN}" ] || [ "${TOKEN}" == "null" ]; then
   printf "${RED}ERROR: Failed to authenticate with Run:AI Control Plane${NC}\n"
@@ -101,9 +93,10 @@ printf "${GREEN}✓ Authentication successful${NC}\n\n"
 # Step 2: Check if cluster already exists
 printf "${GREEN}Step 2: Checking if cluster '${CLUSTER_NAME}' exists...${NC}\n"
 
-EXISTING_CLUSTER_UUID=$(${CURL} -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
-  --header "Accept: application/json" \
-  --header "Authorization: Bearer ${TOKEN}" | \
+EXISTING_CLUSTER_UUID=$(wget -q -O- \
+  --header="Accept: application/json" \
+  --header="Authorization: Bearer ${TOKEN}" \
+  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" | \
   ${JQ} -r ".[] | select(.name==\"${CLUSTER_NAME}\") | .uuid")
 
 if [ -n "${EXISTING_CLUSTER_UUID}" ] && [ "${EXISTING_CLUSTER_UUID}" != "null" ]; then
@@ -113,14 +106,15 @@ else
   # Step 3: Create cluster
   printf "${GREEN}Step 3: Creating cluster '${CLUSTER_NAME}'...${NC}\n"
 
-  CREATE_RESPONSE=$(${CURL} -s -X POST "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters" \
-    --header "Accept: application/json" \
-    --header "Content-Type: application/json" \
-    --header "Authorization: Bearer ${TOKEN}" \
-    --data-raw "{
+  CREATE_RESPONSE=$(wget -q -O- --method=POST \
+    --header="Accept: application/json" \
+    --header="Content-Type: application/json" \
+    --header="Authorization: Bearer ${TOKEN}" \
+    --body-data="{
       \"name\": \"${CLUSTER_NAME}\",
       \"domain\": \"https://${CLUSTER_FQDN}\"
-    }")
+    }" \
+    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters")
 
   CLUSTER_UUID=$(echo "${CREATE_RESPONSE}" | ${JQ} -r '.uuid')
 
@@ -141,9 +135,10 @@ printf "\n"
 # Step 4: Get cluster installation info (including client secret)
 printf "${GREEN}Step 4: Retrieving cluster installation info...${NC}\n"
 
-INSTALL_INFO=$(${CURL} -s -X GET "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info" \
-  --header "Accept: application/json" \
-  --header "Authorization: Bearer ${TOKEN}")
+INSTALL_INFO=$(wget -q -O- \
+  --header="Accept: application/json" \
+  --header="Authorization: Bearer ${TOKEN}" \
+  "https://${RUNAI_CONTROL_PLANE_URL}/v1/clusters/${CLUSTER_UUID}/cluster-install-info")
 
 CLIENT_SECRET=$(echo "${INSTALL_INFO}" | ${JQ} -r '.clientSecret')
 

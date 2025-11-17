@@ -3,7 +3,7 @@ set -e
 
 echo "=== Setting up required tools ==="
 
-# Note: curl is available in Rafay execution container (no need to download)
+# Note: wget is available in Rafay execution container (used for HTTP requests)
 
 # Download jq (for JSON parsing in create-runai-cluster.sh)
 if [ ! -f "./jq" ]; then
