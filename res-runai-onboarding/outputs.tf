@@ -45,9 +45,9 @@ output "dns_safe_hostname" {
 output "deployment_status" {
   value = {
     dns_created         = aws_route53_record.runai_cluster.fqdn
-    cluster_issuer      = "Deployed via ${rafay_workload.cert_manager_issuer.metadata[0].name}"
+    cluster_issuer      = "Deployed via kubectl (${var.cluster_issuer_name})"
     runai_cluster       = "Deployed via Helm (${helm_release.runai_cluster.name})"
-    runai_ingress       = "Deployed via ${rafay_workload.runai_ingress.metadata[0].name}"
+    runai_ingress       = "Deployed via kubectl (namespace: ${var.namespace})"
     access_url          = "https://${local.cluster_fqdn}"
   }
   description = "Deployment status summary"
@@ -57,4 +57,18 @@ output "kubeconfig_path" {
   value       = local_sensitive_file.kubeconfig.filename
   description = "Path to generated kubeconfig file"
   sensitive   = true
+}
+
+# ============================================
+# Outputs for Run:AI Cluster Information
+# ============================================
+
+output "runai_cluster_uuid" {
+  value       = try(data.local_file.runai_cluster_uuid.content, "")
+  description = "Run:AI cluster UUID created in control plane"
+}
+
+output "runai_control_plane_url" {
+  value       = try(data.local_file.runai_control_plane_url.content, "")
+  description = "Run:AI control plane URL"
 }
