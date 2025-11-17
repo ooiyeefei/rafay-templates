@@ -216,14 +216,8 @@ resource "null_resource" "create_runai_cluster" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
-    command     = "chmod +x ./scripts/create-runai-cluster.sh; ./scripts/create-runai-cluster.sh"
+    command     = "chmod +x ./scripts/create-runai-cluster.sh; CLUSTER_NAME='${var.cluster_name}' CLUSTER_FQDN='${local.cluster_fqdn}' ./scripts/create-runai-cluster.sh"
     working_dir = path.module
-    environment = {
-      # RUNAI_CONTROL_PLANE_URL, RUNAI_APP_ID, RUNAI_APP_SECRET
-      # are inherited from Rafay Config Context (like AWS_ACCESS_KEY_ID)
-      CLUSTER_NAME = var.cluster_name
-      CLUSTER_FQDN = local.cluster_fqdn
-    }
   }
 
   triggers = {
