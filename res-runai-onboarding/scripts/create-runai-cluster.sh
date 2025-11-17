@@ -46,7 +46,6 @@ if [ -z "${CLUSTER_FQDN}" ]; then
 fi
 
 # Use locally downloaded jq binary (downloaded by setup.sh)
-# Note: curl is available in Rafay execution container (using system curl)
 JQ="./jq"
 if [ ! -f "${JQ}" ]; then
   printf "${RED}ERROR: jq binary not found at ${JQ}${NC}\n"
