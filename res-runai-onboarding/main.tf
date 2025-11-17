@@ -387,16 +387,58 @@ resource "null_resource" "wait_for_certificate_ready" {
 }
 
 # ============================================
-# Cleanup: Use Rafay Terraform Hooks Instead
+# Cleanup: Delete Run:AI Cluster on Destroy
 # ============================================
 #
-# NOTE: Cleanup is handled via Rafay Terraform Hooks (not Terraform provisioners)
+# This resource runs a cleanup script during terraform destroy to:
+# 1. Authenticate with Run:AI Control Plane
+# 2. Delete the cluster registration via API
 #
-# Configure in Rafay UI:
-#   Resource Template → Hooks → Terraform Hooks → Destroy → Add HTTP Hook
+# Environment variables (RUNAI_APP_ID, RUNAI_APP_SECRET, RUNAI_CONTROL_PLANE_URL)
+# are automatically inherited from Rafay Config Context.
 #
-# The hook will call Run:AI API to delete the cluster using outputs from this module.
-# See RAFAY-HOOKS-APPROACH.md for complete configuration guide.
+# The script reads cluster UUID from the file created during apply.
+# If any values are missing, the script gracefully skips cleanup.
+
+resource "null_resource" "delete_runai_cluster" {
+  depends_on = [
+    null_resource.create_runai_cluster,
+    helm_release.runai_cluster
+  ]
+
+  # This provisioner runs ONLY during terraform destroy
+  provisioner "local-exec" {
+    when        = destroy
+    working_dir = path.module
+    interpreter = ["/bin/bash", "-c"]
+
+    # Call external script to avoid bash escaping issues
+    # Script will read cluster_uuid.txt and control_plane_url.txt
+    # Environment variables are passed automatically from Rafay Config Context
+    command = <<-EOT
+      chmod +x ./scripts/delete-runai-cluster.sh
+
+      # Read values from files (created during apply)
+      if [ -f cluster_uuid.txt ]; then
+        export CLUSTER_UUID=$(cat cluster_uuid.txt)
+      fi
+
+      if [ -f control_plane_url.txt ]; then
+        export RUNAI_CONTROL_PLANE_URL=$(cat control_plane_url.txt)
+      fi
+
+      # Execute the deletion script
+      # RUNAI_APP_ID and RUNAI_APP_SECRET are inherited from environment
+      ./scripts/delete-runai-cluster.sh
+    EOT
+
+    # Note: RUNAI_APP_ID, RUNAI_APP_SECRET, and RUNAI_CONTROL_PLANE_URL
+    # are automatically available from Rafay Config Context
+    # We don't need to explicitly set them here
+  }
+
+  # No triggers needed - this resource just needs to exist for the destroy provisioner
+}
 
 # ============================================
 # Verification Script (Optional)
