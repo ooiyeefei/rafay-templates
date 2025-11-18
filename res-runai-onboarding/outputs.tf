@@ -72,3 +72,38 @@ output "runai_control_plane_url" {
   value       = try(data.local_file.runai_control_plane_url.content, "")
   description = "Run:AI control plane URL"
 }
+
+# ============================================
+# Outputs for Run:AI User Credentials
+# ============================================
+
+output "runai_url" {
+  value       = "https://${try(data.local_file.runai_control_plane_url.content, "")}"
+  description = "Run:AI SaaS Control Plane login URL"
+}
+
+output "runai_project" {
+  value       = var.project_name
+  description = "Run:AI project name created for this cluster"
+}
+
+output "runai_user" {
+  value       = try(data.local_file.runai_user_email.content, "")
+  description = "Run:AI user email for cluster access"
+}
+
+output "runai_password" {
+  value       = try(data.local_sensitive_file.runai_user_password.content, "")
+  description = "Run:AI user password (temporary password if newly created, or 'existing-user-no-password-available' if user already existed)"
+  sensitive   = true
+}
+
+output "user_access_info" {
+  value = {
+    login_url = "https://${try(data.local_file.runai_control_plane_url.content, "")}"
+    username  = try(data.local_file.runai_user_email.content, "")
+    project   = var.project_name
+    scope     = "Project-scoped access (cannot see other clusters/projects)"
+  }
+  description = "Complete user access information"
+}

@@ -33,6 +33,15 @@ variable "nodes_information" {
     number_of_nodes = number
   })
   description = "Output from res-upstream-infra-device terraform with nodes information"
+
+  # Default empty value to allow destroy when upstream resource fails
+  # This prevents "reference not found" errors during Rafay cleanup
+  # When upstream cluster provisioning fails, Rafay can still evaluate this module
+  # for destroy operations without "reference not found" errors
+  default = {
+    nodes_info      = {}
+    number_of_nodes = 0
+  }
 }
 
 # Example:
@@ -60,6 +69,18 @@ variable "runai_helm_repo" {
   type        = string
   default     = "https://runai.jfrog.io/artifactory/api/helm/run-ai-charts"
   description = "Run:AI Helm repository URL"
+}
+
+# --- Run:AI User and Project Configuration ---
+variable "user_email" {
+  type        = string
+  description = "Email for the Run:AI user to be created (will have access to the project)"
+}
+
+variable "user_role" {
+  type        = string
+  default     = "ML engineer"
+  description = "Run:AI role to assign to the user (default: 'ML engineer')"
 }
 
 # --- DNS Configuration ---
@@ -90,4 +111,20 @@ variable "cluster_issuer_name" {
   type        = string
   default     = "letsencrypt-prod"
   description = "Name of the cert-manager ClusterIssuer"
+}
+
+# --- Kubeconfig Fetching ---
+# The module uses rafay_download_kubeconfig data source to fetch kubeconfig
+# directly using the cluster_name variable (already defined above)
+# No additional variable needed!
+
+# --- Optional: Rafay Environment Manager Variables ---
+# These can be injected from Rafay using Starlark expressions like:
+# $(trigger.payload.username)$
+# $(trigger.payload.email)$
+
+variable "rafay_triggered_by" {
+  type        = string
+  default     = ""
+  description = "Optional: User who triggered the deployment (from Rafay)"
 }

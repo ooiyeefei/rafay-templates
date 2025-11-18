@@ -50,24 +50,28 @@ resource "null_resource" "setup" {
 # ============================================
 
 locals {
+  # Check if nodes are available (handles case where upstream resource failed)
+  has_nodes = length(var.nodes_information.nodes_info) > 0
+
   # Extract first node information (assuming single-node or primary node)
   # Access nodes_info field from the wrapper object
-  first_node_key = keys(var.nodes_information.nodes_info)[0]
-  first_node     = var.nodes_information.nodes_info[local.first_node_key]
+  # Use try() to handle empty maps gracefully
+  first_node_key = local.has_nodes ? keys(var.nodes_information.nodes_info)[0] : ""
+  first_node     = local.has_nodes ? var.nodes_information.nodes_info[local.first_node_key] : null
 
   # Sanitize hostname for DNS (remove dashes, lowercase)
   # TRY-63524-gpu01 -> try63524gpu01
-  dns_safe_hostname = lower(replace(local.first_node.hostname, "-", ""))
+  dns_safe_hostname = local.has_nodes ? lower(replace(local.first_node.hostname, "-", "")) : ""
 
   # Construct FQDN
   # Example: try63524gpu01.runai.langgoose.com
-  cluster_fqdn = "${local.dns_safe_hostname}.${var.dns_domain}"
+  cluster_fqdn = local.has_nodes ? "${local.dns_safe_hostname}.${var.dns_domain}" : ""
 
   # Unique TLS secret name per cluster
   tls_secret_name = "runai-tls-${var.cluster_name}"
 
   # Public IP for DNS record
-  public_ip = local.first_node.ip_address
+  public_ip = local.has_nodes ? local.first_node.ip_address : ""
 
   # Parse kubeconfig YAML to extract authentication data
   # Use the Rafay-fetched kubeconfig content
@@ -98,15 +102,28 @@ locals {
 # ============================================
 
 resource "aws_route53_record" "runai_cluster" {
+  count = local.has_nodes ? 1 : 0  # Only create if nodes are available
+
   zone_id = var.route53_zone_id
   name    = local.cluster_fqdn
   type    = "A"
   ttl     = 300
   records = [local.public_ip]
+
+  lifecycle {
+    # Precondition only checked during apply, not destroy
+    # This allows destroy to proceed even when upstream cluster failed
+    precondition {
+      condition     = local.has_nodes
+      error_message = "Cannot create Run:AI infrastructure: No nodes available from upstream cluster. Upstream cluster provisioning failed or is incomplete."
+    }
+  }
 }
 
 # Pragmatic wait for DNS propagation (no kubectl alternative)
 resource "time_sleep" "wait_for_dns" {
+  count = local.has_nodes ? 1 : 0  # Only create if nodes are available
+
   depends_on      = [aws_route53_record.runai_cluster]
   create_duration = "60s"  # Be generous for global DNS propagation
 }
@@ -303,6 +320,50 @@ resource "helm_release" "runai_cluster" {
 }
 
 # ============================================
+# Step 5.5: Create Run:AI Project and User
+# ============================================
+
+resource "null_resource" "create_runai_project_user" {
+  depends_on = [
+    null_resource.setup,
+    null_resource.create_runai_cluster,
+    helm_release.runai_cluster
+  ]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = "chmod +x ./scripts/create-runai-project-user.sh; CLUSTER_UUID='${data.local_file.runai_cluster_uuid.content}' PROJECT_NAME='${var.project_name}' USER_EMAIL='${var.user_email}' USER_ROLE='${var.user_role}' ./scripts/create-runai-project-user.sh"
+    working_dir = path.module
+  }
+
+  triggers = {
+    always_run   = timestamp()  # Force re-run on every apply (idempotent API calls)
+    cluster_uuid = data.local_file.runai_cluster_uuid.content
+    project_name = var.project_name
+    user_email   = var.user_email
+    user_role    = var.user_role
+  }
+}
+
+# Read project ID created by the script
+data "local_file" "runai_project_id" {
+  depends_on = [null_resource.create_runai_project_user]
+  filename   = "${path.module}/project_id.txt"
+}
+
+# Read user email (saved by script)
+data "local_file" "runai_user_email" {
+  depends_on = [null_resource.create_runai_project_user]
+  filename   = "${path.module}/user_email.txt"
+}
+
+# Read user password (temporary password if user was created)
+data "local_sensitive_file" "runai_user_password" {
+  depends_on = [null_resource.create_runai_project_user]
+  filename   = "${path.module}/user_password.txt"
+}
+
+# ============================================
 # Step 6: Deploy Run:AI Ingress with TLS
 # ============================================
 
@@ -402,6 +463,12 @@ resource "null_resource" "delete_runai_cluster" {
     }
 
     command = <<-EOT
+      # RAFAY FIX: Download jq binary for JSON parsing
+      # In Rafay containers, jq from apply phase doesn't persist to destroy phase
+      # So we need to download it again
+      chmod +x ./scripts/setup.sh
+      ./scripts/setup.sh
+
       chmod +x ./scripts/delete-runai-cluster.sh
 
       # Values are passed via environment variables from Terraform state
