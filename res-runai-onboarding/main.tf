@@ -377,38 +377,38 @@ resource "null_resource" "delete_runai_cluster" {
     helm_release.runai_cluster
   ]
 
+  # RAFAY FIX: Store values in triggers - persisted in Terraform state
+  # In Rafay containers, files don't persist between apply and destroy
+  # but Terraform state does! So we store values here and read via self.triggers
+  triggers = {
+    cluster_uuid         = data.local_file.runai_cluster_uuid.content
+    control_plane_url    = data.local_file.runai_control_plane_url.content
+    cluster_name         = var.cluster_name
+    working_directory    = path.module
+  }
+
   # This provisioner runs ONLY during terraform destroy
   provisioner "local-exec" {
     when        = destroy
-    working_dir = path.module
+    working_dir = self.triggers.working_directory
     interpreter = ["/bin/bash", "-c"]
 
-    # Call external script to avoid bash escaping issues
-    # Script will read cluster_uuid.txt and control_plane_url.txt
-    # Environment variables are passed automatically from Rafay Config Context
+    # RAFAY FIX: Pass values from Terraform state as environment variables
+    # Don't try to read files - they don't exist in fresh containers!
+    environment = {
+      CLUSTER_UUID            = self.triggers.cluster_uuid
+      RUNAI_CONTROL_PLANE_URL = self.triggers.control_plane_url
+      CLUSTER_NAME            = self.triggers.cluster_name
+    }
+
     command = <<-EOT
       chmod +x ./scripts/delete-runai-cluster.sh
 
-      # Read values from files (created during apply)
-      if [ -f cluster_uuid.txt ]; then
-        export CLUSTER_UUID=$(cat cluster_uuid.txt)
-      fi
-
-      if [ -f control_plane_url.txt ]; then
-        export RUNAI_CONTROL_PLANE_URL=$(cat control_plane_url.txt)
-      fi
-
-      # Execute the deletion script
-      # RUNAI_APP_ID and RUNAI_APP_SECRET are inherited from environment
+      # Values are passed via environment variables from Terraform state
+      # RUNAI_APP_ID and RUNAI_APP_SECRET are inherited from Rafay Config Context
       ./scripts/delete-runai-cluster.sh
     EOT
-
-    # Note: RUNAI_APP_ID, RUNAI_APP_SECRET, and RUNAI_CONTROL_PLANE_URL
-    # are automatically available from Rafay Config Context
-    # We don't need to explicitly set them here
   }
-
-  # No triggers needed - this resource just needs to exist for the destroy provisioner
 }
 
 # ============================================
