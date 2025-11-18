@@ -336,23 +336,26 @@ resource "null_resource" "deploy_runai_ingress" {
 }
 
 # ACTIVELY WAIT for Certificate to be issued
-resource "null_resource" "wait_for_certificate_ready" {
-  depends_on = [
-    null_resource.deploy_runai_ingress
-  ]
-
-  provisioner "local-exec" {
-    # This command polls for up to 5 minutes for the certificate to be issued and ready
-    # cert-manager will handle the HTTP-01 challenge and ACME communication
-    # Uses locally downloaded kubectl binary (from setup.sh).
-    command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} wait --for=condition=Ready certificate/${local.tls_secret_name} -n ${var.namespace} --timeout=300s"
-    working_dir = path.module
-  }
-
-  triggers = {
-    yaml_sha = sha256(local_file.runai_ingress_yaml.content)
-  }
-}
+# NOTE: Commented out for demo purposes - certificate will be created but we won't wait for it
+# The certificate requires port 80 to be publicly accessible for Let's Encrypt HTTP-01 challenge
+# For production, uncomment this resource and ensure port 80 is open
+# resource "null_resource" "wait_for_certificate_ready" {
+#   depends_on = [
+#     null_resource.deploy_runai_ingress
+#   ]
+#
+#   provisioner "local-exec" {
+#     # This command polls for up to 5 minutes for the certificate to be issued and ready
+#     # cert-manager will handle the HTTP-01 challenge and ACME communication
+#     # Uses locally downloaded kubectl binary (from setup.sh).
+#     command     = "./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} wait --for=condition=Ready certificate/${local.tls_secret_name} -n ${var.namespace} --timeout=300s"
+#     working_dir = path.module
+#   }
+#
+#   triggers = {
+#     yaml_sha = sha256(local_file.runai_ingress_yaml.content)
+#   }
+# }
 
 # ============================================
 # Cleanup: Delete Run:AI Cluster on Destroy
@@ -415,7 +418,8 @@ resource "null_resource" "delete_runai_cluster" {
 # This can be used to verify the deployment
 resource "null_resource" "verify_deployment" {
   depends_on = [
-    null_resource.wait_for_certificate_ready
+    null_resource.deploy_runai_ingress,
+    helm_release.runai_cluster
   ]
 
   provisioner "local-exec" {
@@ -426,9 +430,10 @@ resource "null_resource" "verify_deployment" {
       echo "Cluster FQDN: ${local.cluster_fqdn}"
       echo "Public IP: ${local.public_ip}"
       echo "DNS Record: ${aws_route53_record.runai_cluster.fqdn}"
-      echo "TLS Secret: ${local.tls_secret_name}"
+      echo "TLS Secret: ${local.tls_secret_name} (pending certificate issuance)"
       echo ""
-      echo "Access Run:AI at: https://${local.cluster_fqdn}"
+      echo "Access Run:AI SaaS UI to submit jobs"
+      echo "Cluster ingress: https://${local.cluster_fqdn} (requires port 80 for TLS cert)"
       echo "==================================="
     EOT
   }
