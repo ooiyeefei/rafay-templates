@@ -332,7 +332,7 @@ resource "null_resource" "create_runai_project_user" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
-    command     = "chmod +x ./scripts/create-runai-project-user.sh; CLUSTER_UUID='${data.local_file.runai_cluster_uuid.content}' PROJECT_NAME='${var.project_name}' USER_EMAIL='${var.user_email}' USER_ROLE='${var.user_role}' ./scripts/create-runai-project-user.sh"
+    command     = "chmod +x ./scripts/create-runai-project-user.sh; CLUSTER_UUID='${data.local_file.runai_cluster_uuid.content}' PROJECT_NAME='${var.project_name}' USER_EMAIL='${var.user_email}' ./scripts/create-runai-project-user.sh"
     working_dir = path.module
   }
 
@@ -341,7 +341,6 @@ resource "null_resource" "create_runai_project_user" {
     cluster_uuid = data.local_file.runai_cluster_uuid.content
     project_name = var.project_name
     user_email   = var.user_email
-    user_role    = var.user_role
   }
 }
 

@@ -74,13 +74,7 @@ variable "runai_helm_repo" {
 # --- Run:AI User and Project Configuration ---
 variable "user_email" {
   type        = string
-  description = "Email for the Run:AI user to be created (will have access to the project)"
-}
-
-variable "user_role" {
-  type        = string
-  default     = "ML engineer"
-  description = "Run:AI role to assign to the user (default: 'ML engineer')"
+  description = "Email for the Run:AI user to be created (will have cluster-scoped Administrator access)"
 }
 
 # --- DNS Configuration ---

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Create Run:AI project and user with dedicated access
+# Create Run:AI project and user with cluster-scoped admin access
 #
 # Required environment variables:
 #   RUNAI_CONTROL_PLANE_URL - Run:AI Control Plane URL
@@ -9,7 +9,8 @@
 #   CLUSTER_UUID            - Cluster UUID (from create-runai-cluster.sh)
 #   PROJECT_NAME            - Name for the project
 #   USER_EMAIL              - Email for the user
-#   USER_ROLE               - Role name (default: "ML engineer")
+#
+# User will be assigned "Administrator" role with cluster-scoped access
 
 set -e
 
@@ -28,8 +29,7 @@ printf "  RUNAI_APP_ID: ${RUNAI_APP_ID:-NOT SET}\n"
 printf "  RUNAI_APP_SECRET: ${RUNAI_APP_SECRET:+SET (hidden)}\n"
 printf "  CLUSTER_UUID: ${CLUSTER_UUID:-NOT SET}\n"
 printf "  PROJECT_NAME: ${PROJECT_NAME:-NOT SET}\n"
-printf "  USER_EMAIL: ${USER_EMAIL:-NOT SET}\n"
-printf "  USER_ROLE: ${USER_ROLE:-ML engineer}\n\n"
+printf "  USER_EMAIL: ${USER_EMAIL:-NOT SET}\n\n"
 
 # Validate required environment variables
 if [ -z "${RUNAI_CONTROL_PLANE_URL}" ]; then
@@ -62,8 +62,8 @@ if [ -z "${USER_EMAIL}" ]; then
   exit 1
 fi
 
-# Default role if not set
-USER_ROLE="${USER_ROLE:-ML engineer}"
+# Always use Administrator role for cluster-scoped access
+USER_ROLE="Administrator"
 
 # Use locally downloaded jq binary
 JQ="./jq"
@@ -78,7 +78,7 @@ printf "  Control Plane: ${RUNAI_CONTROL_PLANE_URL}\n"
 printf "  Cluster UUID: ${CLUSTER_UUID}\n"
 printf "  Project Name: ${PROJECT_NAME}\n"
 printf "  User Email: ${USER_EMAIL}\n"
-printf "  User Role: ${USER_ROLE}\n\n"
+printf "  User Role: ${USER_ROLE} (cluster-scoped)\n\n"
 
 # Step 1: Get authentication token
 printf "${GREEN}Step 1: Authenticating with Run:AI Control Plane...${NC}\n"
@@ -209,15 +209,17 @@ fi
 
 printf "${GREEN}✓ Found role with ID: ${ROLE_ID}${NC}\n\n"
 
-# Step 5: Create Access Rule - Scope to Project (not entire cluster)
-printf "${GREEN}Step 5: Creating access rule (user -> project scope)...${NC}\n"
+# Step 5: Create Access Rule - Cluster-scoped Administrator
+printf "${GREEN}Step 5: Creating access rule (user -> cluster scope)...${NC}\n"
 
-# According to API docs: subjectId is the user email, scopeId is the project ID
+# Cluster-scoped access: user can manage entire cluster but not see other clusters
+# scopeId = CLUSTER_UUID (not project ID)
+# scopeType = "cluster" (not "project")
 ACCESS_RULE_RESPONSE=$(wget -q -O- \
   --header="Accept: application/json" \
   --header="Content-Type: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  --post-data="{\"subjectId\":\"${USER_EMAIL}\",\"subjectType\":\"user\",\"roleId\":${ROLE_ID},\"scopeId\":\"${PROJECT_ID}\",\"scopeType\":\"project\"}" \
+  --post-data="{\"subjectId\":\"${USER_EMAIL}\",\"subjectType\":\"user\",\"roleId\":${ROLE_ID},\"scopeId\":\"${CLUSTER_UUID}\",\"scopeType\":\"cluster\"}" \
   "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/authorization/access-rules")
 
 printf "${YELLOW}DEBUG: Access rule creation response:${NC}\n${ACCESS_RULE_RESPONSE}\n\n"
@@ -243,7 +245,7 @@ else
   printf "User Password: N/A (user already existed)\n"
 fi
 printf "User Role: ${USER_ROLE}\n"
-printf "Access Scope: Project '${PROJECT_NAME}' (not entire cluster)\n"
+printf "Access Scope: Cluster-scoped (can manage this cluster, cannot see other clusters)\n"
 printf "${GREEN}================================${NC}\n"
 
 exit 0
