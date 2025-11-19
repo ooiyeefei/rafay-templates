@@ -3,13 +3,15 @@
 # ============================================
 #
 # This module automates the following steps:
-# 1. Parse node information and create DNS-safe hostname
+# 1. Parse node information and create DNS-safe cluster name
 # 2. Create Route53 DNS A record
 # 3. Deploy cert-manager ClusterIssuer (via kubectl)
 # 4. Create Run:AI cluster in Control Plane (via API)
 #    └─ Retrieve cluster UUID and client secret
 # 5. Install Run:AI Helm chart (using credentials from step 4)
 # 6. Create Run:AI ingress with TLS (via kubectl)
+# 7. Create cluster administrator user with cluster-scoped access
+#    └─ User can manage this cluster only, cannot see other clusters
 #
 # Dependencies are properly sequenced to ensure correct order.
 # Uses kubectl for simple YAML deployments (not rafay_workload).
@@ -59,13 +61,14 @@ locals {
   first_node_key = local.has_nodes ? keys(var.nodes_information.nodes_info)[0] : ""
   first_node     = local.has_nodes ? var.nodes_information.nodes_info[local.first_node_key] : null
 
-  # Sanitize hostname for DNS (remove dashes, lowercase)
-  # TRY-63524-gpu01 -> try63524gpu01
-  dns_safe_hostname = local.has_nodes ? lower(replace(local.first_node.hostname, "-", "")) : ""
+  # Use cluster name for DNS (unique per Run:AI cluster)
+  # This ensures each Run:AI cluster gets a unique DNS record
+  # even if deployed on the same physical node
+  dns_safe_cluster_name = lower(replace(var.cluster_name, "_", "-"))
 
-  # Construct FQDN
-  # Example: try63524gpu01.runai.langgoose.com
-  cluster_fqdn = local.has_nodes ? "${local.dns_safe_hostname}.${var.dns_domain}" : ""
+  # Construct FQDN using cluster name
+  # Example: my-runai-cluster.runai.langgoose.com
+  cluster_fqdn = local.has_nodes ? "${local.dns_safe_cluster_name}.${var.dns_domain}" : ""
 
   # Unique TLS secret name per cluster
   tls_secret_name = "runai-tls-${var.cluster_name}"
@@ -102,11 +105,12 @@ locals {
 # ============================================
 
 resource "aws_route53_record" "runai_cluster" {
-  zone_id = var.route53_zone_id
-  name    = local.cluster_fqdn
-  type    = "A"
-  ttl     = 300
-  records = [local.public_ip]
+  zone_id         = var.route53_zone_id
+  name            = local.cluster_fqdn
+  type            = "A"
+  ttl             = 300
+  records         = [local.public_ip]
+  allow_overwrite = true  # Allow overwriting if record already exists
 
   lifecycle {
     # Precondition will fail fast if nodes are missing
@@ -316,45 +320,39 @@ resource "helm_release" "runai_cluster" {
 }
 
 # ============================================
-# Step 5.5: Create Run:AI Project and User
+# Step 5.5: Create Run:AI Cluster Administrator User
 # ============================================
 
-resource "null_resource" "create_runai_project_user" {
+resource "null_resource" "create_runai_cluster_admin" {
   depends_on = [
     null_resource.setup,
     null_resource.create_runai_cluster,
-    helm_release.runai_cluster
+    helm_release.runai_cluster,
+    null_resource.deploy_runai_ingress  # Wait for full cluster setup including ingress
   ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
-    command     = "chmod +x ./scripts/create-runai-project-user.sh; CLUSTER_UUID='${data.local_file.runai_cluster_uuid.content}' PROJECT_NAME='${var.project_name}' USER_EMAIL='${var.user_email}' ./scripts/create-runai-project-user.sh"
+    command     = "chmod +x ./scripts/create-runai-cluster-admin.sh; CLUSTER_UUID='${data.local_file.runai_cluster_uuid.content}' USER_EMAIL='${var.user_email}' ./scripts/create-runai-cluster-admin.sh"
     working_dir = path.module
   }
 
   triggers = {
     always_run   = timestamp()  # Force re-run on every apply (idempotent API calls)
     cluster_uuid = data.local_file.runai_cluster_uuid.content
-    project_name = var.project_name
     user_email   = var.user_email
   }
 }
 
-# Read project ID created by the script
-data "local_file" "runai_project_id" {
-  depends_on = [null_resource.create_runai_project_user]
-  filename   = "${path.module}/project_id.txt"
-}
-
 # Read user email (saved by script)
 data "local_file" "runai_user_email" {
-  depends_on = [null_resource.create_runai_project_user]
+  depends_on = [null_resource.create_runai_cluster_admin]
   filename   = "${path.module}/user_email.txt"
 }
 
 # Read user password (temporary password if user was created)
 data "local_sensitive_file" "runai_user_password" {
-  depends_on = [null_resource.create_runai_project_user]
+  depends_on = [null_resource.create_runai_cluster_admin]
   filename   = "${path.module}/user_password.txt"
 }
 
