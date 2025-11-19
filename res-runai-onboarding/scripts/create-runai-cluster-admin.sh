@@ -117,11 +117,12 @@ if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
 
   # Temporarily disable exit on error for password reset (it might not be supported)
   set +e
-  RESET_RESPONSE=$(wget --server-response --content-on-error -q -O- \
-    --method=POST \
+  # BusyBox wget compatible (use -S for server response, --post-data with empty body for POST)
+  RESET_RESPONSE=$(wget -S -q -O- \
     --header="Accept: application/json" \
     --header="Content-Type: application/json" \
     --header="Authorization: Bearer ${TOKEN}" \
+    --post-data="" \
     "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password" 2>&1)
   RESET_EXIT_CODE=$?
   set -e
@@ -173,11 +174,12 @@ else
 
     # Temporarily disable exit on error for password reset (it might not be supported)
     set +e
-    RESET_RESPONSE=$(wget --server-response --content-on-error -q -O- \
-      --method=POST \
+    # BusyBox wget compatible (use -S for server response, --post-data with empty body for POST)
+    RESET_RESPONSE=$(wget -S -q -O- \
       --header="Accept: application/json" \
       --header="Content-Type: application/json" \
       --header="Authorization: Bearer ${TOKEN}" \
+      --post-data="" \
       "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password" 2>&1)
     RESET_EXIT_CODE=$?
     set -e
