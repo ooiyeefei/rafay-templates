@@ -108,44 +108,15 @@ EXISTING_USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.us
 
 if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   printf "${YELLOW}User already exists with ID: ${EXISTING_USER_ID}${NC}\n"
-  printf "${YELLOW}Resetting password for existing user...${NC}\n"
+  printf "${YELLOW}Note: Cannot reset password via API (endpoint not available).${NC}\n"
+  printf "${YELLOW}Using existing user. Password must be reset manually in Run:AI UI.${NC}\n"
   USER_ID="${EXISTING_USER_ID}"
+  # Save empty password since we're keeping existing user
+  echo -n "" > user_password.txt
+fi
 
-  # Reset password for existing user using API
-  # API: POST /api/v1/users/{userId}/reset-password
-  printf "${YELLOW}DEBUG: Calling password reset endpoint: https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password${NC}\n"
-
-  # Temporarily disable exit on error for password reset (it might not be supported)
-  set +e
-  # BusyBox wget compatible (use -S for server response, --post-data with empty body for POST)
-  RESET_RESPONSE=$(wget -S -q -O- \
-    --header="Accept: application/json" \
-    --header="Content-Type: application/json" \
-    --header="Authorization: Bearer ${TOKEN}" \
-    --post-data="" \
-    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password" 2>&1)
-  RESET_EXIT_CODE=$?
-  set -e
-
-  printf "${YELLOW}DEBUG: Password reset response (exit code: ${RESET_EXIT_CODE}):${NC}\n${RESET_RESPONSE}\n\n"
-
-  if [ ${RESET_EXIT_CODE} -eq 0 ]; then
-    RESET_PASSWORD=$(echo "${RESET_RESPONSE}" | sed -n '/^$/,${/^$/d;p}' | ${JQ} -r '.tempPassword // empty')
-    if [ -n "${RESET_PASSWORD}" ]; then
-      echo -n "${RESET_PASSWORD}" > user_password.txt
-      printf "${GREEN}✓ Password reset successful (will be available in Terraform outputs)${NC}\n"
-    else
-      echo -n "" > user_password.txt
-      printf "${YELLOW}Warning: Password reset returned no password. Response: ${RESET_RESPONSE}${NC}\n"
-    fi
-  else
-    # Password reset API not available or failed
-    echo -n "" > user_password.txt
-    printf "${YELLOW}Warning: Password reset API failed (404 Not Found).${NC}\n"
-    printf "${YELLOW}The user already exists. Use Run:AI UI to reset password if needed.${NC}\n"
-    printf "${YELLOW}Login at: https://${RUNAI_CONTROL_PLANE_URL}${NC}\n"
-  fi
-else
+# Create user if doesn't exist (or was just deleted)
+if [ -z "${EXISTING_USER_ID}" ] || [ "${EXISTING_USER_ID}" == "null" ]; then
   # Create user with resetPassword: false to get temp password
   # Use --server-response to capture HTTP status code
   USER_RESPONSE=$(wget --server-response --content-on-error -q -O- \
