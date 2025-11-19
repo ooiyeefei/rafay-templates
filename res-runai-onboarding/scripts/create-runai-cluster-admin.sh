@@ -104,7 +104,7 @@ EXISTING_USER_RESPONSE=$(wget -q -O- \
 
 printf "${YELLOW}DEBUG: Users list response (first 500 chars):${NC}\n${EXISTING_USER_RESPONSE:0:500}\n\n"
 
-EXISTING_USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.email==\"${USER_EMAIL}\") | .id")
+EXISTING_USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.username==\"${USER_EMAIL}\") | .id")
 
 if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   printf "${YELLOW}User already exists with ID: ${EXISTING_USER_ID}${NC}\n"
@@ -132,7 +132,7 @@ else
       --header="Accept: application/json" \
       --header="Authorization: Bearer ${TOKEN}" \
       "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users")
-    USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.email==\"${USER_EMAIL}\") | .id")
+    USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.username==\"${USER_EMAIL}\") | .id")
     # Save empty password to indicate existing user
     echo -n "" > user_password.txt
     printf "${GREEN}✓ Found existing user with ID: ${USER_ID}${NC}\n"
