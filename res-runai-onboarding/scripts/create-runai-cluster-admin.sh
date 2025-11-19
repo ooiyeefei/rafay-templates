@@ -60,8 +60,8 @@ if [ -z "${USER_EMAIL}" ]; then
   exit 1
 fi
 
-# Always use Administrator role for cluster-scoped access
-USER_ROLE="Administrator"
+# Always use System administrator role for cluster-scoped access
+USER_ROLE="System administrator"
 
 # Use locally downloaded jq binary
 JQ="./jq"
