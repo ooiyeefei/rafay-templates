@@ -209,14 +209,22 @@ if [ -z "${EXISTING_USER_ID}" ] || [ "${EXISTING_USER_ID}" == "null" ]; then
       printf "${YELLOW}Login at: https://${RUNAI_CONTROL_PLANE_URL}${NC}\n"
     fi
   else
-    # Extract JSON body (after blank line)
-    USER_JSON=$(echo "${USER_RESPONSE}" | sed -n '/^$/,${/^$/d;p}')
+    # Extract JSON body - look for the last line that starts with { (the JSON)
+    # BusyBox wget with -S mixes headers and body, so we find the JSON line
+    USER_JSON=$(echo "${USER_RESPONSE}" | grep -E '^\{.*\}$' | tail -1)
+
+    # If no JSON found, try extracting everything after the last blank line
+    if [ -z "${USER_JSON}" ]; then
+      USER_JSON=$(echo "${USER_RESPONSE}" | sed -n '/^$/,${/^$/d;p}')
+    fi
+
     USER_ID=$(echo "${USER_JSON}" | ${JQ} -r '.id')
     GENERATED_PASSWORD=$(echo "${USER_JSON}" | ${JQ} -r '.tempPassword // empty')
 
     if [ -z "${USER_ID}" ] || [ "${USER_ID}" == "null" ]; then
       printf "${RED}ERROR: Failed to create user${NC}\n"
       printf "${RED}Response: ${USER_RESPONSE}${NC}\n"
+      printf "${YELLOW}DEBUG: Extracted JSON: ${USER_JSON}${NC}\n"
       exit 1
     fi
 
