@@ -13,7 +13,7 @@ output "user_email" {
 }
 
 output "password" {
-  value       = local.runai_user_password
-  description = "Run:AI user password"
+  value       = try(data.local_sensitive_file.runai_user_password.content, "Check script logs for password or use Run:AI UI to reset")
+  description = "Run:AI user password (Run:AI generated temporary password - empty if user already existed)"
   sensitive   = true
 }
