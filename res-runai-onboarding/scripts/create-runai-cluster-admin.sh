@@ -108,10 +108,30 @@ EXISTING_USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.us
 
 if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   printf "${YELLOW}User already exists with ID: ${EXISTING_USER_ID}${NC}\n"
-  printf "${YELLOW}Note: Use Run:AI UI to reset password if needed.${NC}\n"
+  printf "${YELLOW}Resetting password for existing user...${NC}\n"
   USER_ID="${EXISTING_USER_ID}"
-  # Save empty password to indicate existing user
-  echo -n "" > user_password.txt
+
+  # Reset password for existing user using API
+  # API: POST /api/v1/users/{id}/reset-password
+  RESET_RESPONSE=$(wget -q -O- \
+    --header="Accept: application/json" \
+    --header="Content-Type: application/json" \
+    --header="Authorization: Bearer ${TOKEN}" \
+    --post-data="{}" \
+    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password")
+
+  printf "${YELLOW}DEBUG: Password reset response:${NC}\n${RESET_RESPONSE}\n\n"
+
+  RESET_PASSWORD=$(echo "${RESET_RESPONSE}" | ${JQ} -r '.tempPassword // empty')
+
+  if [ -n "${RESET_PASSWORD}" ]; then
+    echo -n "${RESET_PASSWORD}" > user_password.txt
+    printf "${GREEN}✓ Password reset successful (will be available in Terraform outputs)${NC}\n"
+  else
+    # Fallback to empty password if reset failed
+    echo -n "" > user_password.txt
+    printf "${YELLOW}Warning: Password reset may have failed. Response: ${RESET_RESPONSE}${NC}\n"
+  fi
 else
   # Create user with resetPassword: false to get temp password
   # Use --server-response to capture HTTP status code
@@ -133,9 +153,29 @@ else
       --header="Authorization: Bearer ${TOKEN}" \
       "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users")
     USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.username==\"${USER_EMAIL}\") | .id")
-    # Save empty password to indicate existing user
-    echo -n "" > user_password.txt
     printf "${GREEN}✓ Found existing user with ID: ${USER_ID}${NC}\n"
+
+    # Reset password for existing user
+    printf "${YELLOW}Resetting password for existing user...${NC}\n"
+    RESET_RESPONSE=$(wget -q -O- \
+      --header="Accept: application/json" \
+      --header="Content-Type: application/json" \
+      --header="Authorization: Bearer ${TOKEN}" \
+      --post-data="{}" \
+      "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password")
+
+    printf "${YELLOW}DEBUG: Password reset response:${NC}\n${RESET_RESPONSE}\n\n"
+
+    RESET_PASSWORD=$(echo "${RESET_RESPONSE}" | ${JQ} -r '.tempPassword // empty')
+
+    if [ -n "${RESET_PASSWORD}" ]; then
+      echo -n "${RESET_PASSWORD}" > user_password.txt
+      printf "${GREEN}✓ Password reset successful (will be available in Terraform outputs)${NC}\n"
+    else
+      # Fallback to empty password if reset failed
+      echo -n "" > user_password.txt
+      printf "${YELLOW}Warning: Password reset may have failed. Response: ${RESET_RESPONSE}${NC}\n"
+    fi
   else
     # Extract JSON body (after blank line)
     USER_JSON=$(echo "${USER_RESPONSE}" | sed -n '/^$/,${/^$/d;p}')
