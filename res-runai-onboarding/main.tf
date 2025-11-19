@@ -102,8 +102,6 @@ locals {
 # ============================================
 
 resource "aws_route53_record" "runai_cluster" {
-  count = local.has_nodes ? 1 : 0  # Only create if nodes are available
-
   zone_id = var.route53_zone_id
   name    = local.cluster_fqdn
   type    = "A"
@@ -111,8 +109,8 @@ resource "aws_route53_record" "runai_cluster" {
   records = [local.public_ip]
 
   lifecycle {
-    # Precondition only checked during apply, not destroy
-    # This allows destroy to proceed even when upstream cluster failed
+    # Precondition will fail fast if nodes are missing
+    # This provides clear error message during apply
     precondition {
       condition     = local.has_nodes
       error_message = "Cannot create Run:AI infrastructure: No nodes available from upstream cluster. Upstream cluster provisioning failed or is incomplete."
@@ -122,8 +120,6 @@ resource "aws_route53_record" "runai_cluster" {
 
 # Pragmatic wait for DNS propagation (no kubectl alternative)
 resource "time_sleep" "wait_for_dns" {
-  count = local.has_nodes ? 1 : 0  # Only create if nodes are available
-
   depends_on      = [aws_route53_record.runai_cluster]
   create_duration = "60s"  # Be generous for global DNS propagation
 }
