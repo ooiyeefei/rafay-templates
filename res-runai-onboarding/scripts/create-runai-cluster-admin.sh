@@ -108,11 +108,46 @@ EXISTING_USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.us
 
 if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   printf "${YELLOW}User already exists with ID: ${EXISTING_USER_ID}${NC}\n"
-  printf "${YELLOW}Note: Cannot reset password via API (endpoint not available).${NC}\n"
-  printf "${YELLOW}Using existing user. Password must be reset manually in Run:AI UI.${NC}\n"
-  USER_ID="${EXISTING_USER_ID}"
-  # Save empty password since we're keeping existing user
-  echo -n "" > user_password.txt
+
+  # Check if user wants to force recreate (to get fresh password)
+  if [ "${FORCE_USER_RECREATE}" == "true" ]; then
+    printf "${YELLOW}FORCE_USER_RECREATE=true: Deleting existing user to get fresh password...${NC}\n"
+
+    # Try to delete using wget with custom request (BusyBox compatible workaround)
+    # Some implementations support X-HTTP-Method-Override header
+    set +e
+    DELETE_RESPONSE=$(wget -S -q -O- \
+      --header="Accept: application/json" \
+      --header="Authorization: Bearer ${TOKEN}" \
+      --header="X-HTTP-Method-Override: DELETE" \
+      --post-data="" \
+      "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${EXISTING_USER_ID}" 2>&1)
+    DELETE_EXIT_CODE=$?
+    set -e
+
+    printf "${YELLOW}DEBUG: Delete response (exit code: ${DELETE_EXIT_CODE}):${NC}\n${DELETE_RESPONSE}\n\n"
+
+    if [ ${DELETE_EXIT_CODE} -eq 0 ]; then
+      printf "${GREEN}✓ Existing user deleted successfully${NC}\n"
+      printf "${YELLOW}Waiting 3 seconds for deletion to complete...${NC}\n"
+      sleep 3
+      # Clear EXISTING_USER_ID so we create new user below
+      EXISTING_USER_ID=""
+    else
+      printf "${YELLOW}Warning: Failed to delete user via API.${NC}\n"
+      printf "${YELLOW}User deletion might not be supported or requires different method.${NC}\n"
+      printf "${YELLOW}Keeping existing user. Password will be empty.${NC}\n"
+      USER_ID="${EXISTING_USER_ID}"
+      echo -n "" > user_password.txt
+    fi
+  else
+    printf "${YELLOW}Note: Cannot reset password via API (endpoint not available).${NC}\n"
+    printf "${YELLOW}Using existing user. Password must be reset manually in Run:AI UI.${NC}\n"
+    printf "${YELLOW}Tip: Set force_user_recreate=true in Terraform to delete and recreate user with fresh password.${NC}\n"
+    USER_ID="${EXISTING_USER_ID}"
+    # Save empty password since we're keeping existing user
+    echo -n "" > user_password.txt
+  fi
 fi
 
 # Create user if doesn't exist (or was just deleted)
@@ -249,6 +284,9 @@ else
   printf "${YELLOW}Warning: Access rule may already exist or creation failed${NC}\n"
   printf "${YELLOW}Response: ${ACCESS_RULE_RESPONSE}${NC}\n"
 fi
+
+# Save User ID to file for Terraform to read (used during destroy to delete user)
+echo -n "${USER_ID}" > user_id.txt
 
 printf "\n${GREEN}=== Summary ===${NC}\n"
 printf "User Email: ${USER_EMAIL}\n"

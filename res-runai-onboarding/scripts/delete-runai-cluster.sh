@@ -83,23 +83,58 @@ fi
 
 printf "${GREEN}✓ Authentication successful${NC}\n\n"
 
-# Step 2: Delete cluster with force=true
-printf "${GREEN}Step 2: Deleting cluster ${CLUSTER_UUID}...${NC}\n"
+# Step 2: Delete user (if USER_ID provided)
+if [ -n "${USER_ID}" ] && [ "${USER_ID}" != "null" ]; then
+  printf "${GREEN}Step 2: Deleting user ${USER_ID}...${NC}\n"
 
-DELETE_RESPONSE=$(wget -q -O- \
-  --method=DELETE \
+  # Use a workaround for DELETE since BusyBox wget doesn't support --method=DELETE
+  # We create a custom request using --header with X-HTTP-Method-Override
+  set +e
+  USER_DELETE_RESPONSE=$(wget -S -q -O- \
+    --header="Accept: application/json" \
+    --header="Authorization: Bearer ${TOKEN}" \
+    --header="X-HTTP-Method-Override: DELETE" \
+    --post-data="" \
+    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}" 2>&1)
+  USER_DELETE_EXIT=$?
+  set -e
+
+  printf "${YELLOW}DEBUG: User delete response:${NC}\n${USER_DELETE_RESPONSE}\n\n"
+
+  if [ ${USER_DELETE_EXIT} -eq 0 ] || echo "${USER_DELETE_RESPONSE}" | grep -q "404 Not Found"; then
+    printf "${GREEN}✓ User deleted or already removed${NC}\n\n"
+  else
+    printf "${YELLOW}WARNING: User deletion may have failed (non-critical)${NC}\n\n"
+  fi
+else
+  printf "${YELLOW}Step 2: Skipping user deletion (no USER_ID provided)${NC}\n\n"
+fi
+
+# Step 3: Delete cluster with force=true
+printf "${GREEN}Step 3: Deleting cluster ${CLUSTER_UUID}...${NC}\n"
+
+# BusyBox wget doesn't support --method=DELETE, use workaround with X-HTTP-Method-Override
+set +e
+CLUSTER_DELETE_RESPONSE=$(wget -S -q -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}?force=true" \
-  2>&1 || echo "")
+  --header="X-HTTP-Method-Override: DELETE" \
+  --post-data="" \
+  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}?force=true" 2>&1)
+CLUSTER_DELETE_EXIT=$?
+set -e
 
 # Check response
-printf "${YELLOW}DEBUG: Delete response:${NC}\n${DELETE_RESPONSE}\n\n"
+printf "${YELLOW}DEBUG: Cluster delete response:${NC}\n${CLUSTER_DELETE_RESPONSE}\n\n"
 
 # Note: force=true returns 204 No Content on success
 # 404 means cluster already deleted (OK)
-# Any response means the API call was made successfully
-printf "${GREEN}✓ Cluster deletion initiated${NC}\n"
+if [ ${CLUSTER_DELETE_EXIT} -eq 0 ] || echo "${CLUSTER_DELETE_RESPONSE}" | grep -q "404 Not Found"; then
+  printf "${GREEN}✓ Cluster deletion initiated or already removed${NC}\n"
+else
+  printf "${YELLOW}WARNING: Cluster deletion may have failed${NC}\n"
+fi
+
 printf "${GREEN}Terraform resources will now be destroyed${NC}\n"
 printf "${GREEN}==================================${NC}\n"
 

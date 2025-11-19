@@ -350,6 +350,12 @@ data "local_sensitive_file" "runai_user_password" {
   filename   = "${path.module}/user_password.txt"
 }
 
+# Read user ID for deletion during destroy
+data "local_file" "runai_user_id" {
+  depends_on = [null_resource.create_runai_cluster_admin]
+  filename   = "${path.module}/user_id.txt"
+}
+
 # ============================================
 # Step 6: Deploy Run:AI Ingress with TLS
 # ============================================
@@ -422,7 +428,8 @@ resource "null_resource" "deploy_runai_ingress" {
 resource "null_resource" "delete_runai_cluster" {
   depends_on = [
     null_resource.create_runai_cluster,
-    helm_release.runai_cluster
+    helm_release.runai_cluster,
+    null_resource.create_runai_cluster_admin  # Ensure user is created before we store its ID
   ]
 
   # RAFAY FIX: Store values in triggers - persisted in Terraform state
@@ -432,6 +439,8 @@ resource "null_resource" "delete_runai_cluster" {
     cluster_uuid         = data.local_file.runai_cluster_uuid.content
     control_plane_url    = data.local_file.runai_control_plane_url.content
     cluster_name         = var.cluster_name
+    user_email           = var.user_email
+    user_id              = try(data.local_file.runai_user_id.content, "")
     working_directory    = path.module
   }
 
@@ -447,6 +456,8 @@ resource "null_resource" "delete_runai_cluster" {
       CLUSTER_UUID            = self.triggers.cluster_uuid
       RUNAI_CONTROL_PLANE_URL = self.triggers.control_plane_url
       CLUSTER_NAME            = self.triggers.cluster_name
+      USER_EMAIL              = self.triggers.user_email
+      USER_ID                 = self.triggers.user_id
     }
 
     command = <<-EOT
@@ -466,18 +477,41 @@ resource "null_resource" "delete_runai_cluster" {
 }
 
 # ============================================
-# Verification Script (Optional)
+# Cluster Audit Script (Optional)
 # ============================================
 
-# This can be used to verify the deployment
-resource "null_resource" "verify_deployment" {
+# Run comprehensive audit of Run:AI / NVIDIA / K8s stack
+resource "null_resource" "audit_cluster" {
   depends_on = [
     null_resource.deploy_runai_ingress,
-    helm_release.runai_cluster
+    helm_release.runai_cluster,
+    null_resource.create_runai_cluster_admin
   ]
 
   provisioner "local-exec" {
     command = <<-EOT
+      chmod +x ./scripts/audit-cluster.sh
+
+      # Set environment variables for audit script
+      export RUNAI_CONTROL_PLANE_URL="${data.local_file.runai_control_plane_url.content}"
+      export CLUSTER_UUID="${data.local_file.runai_cluster_uuid.content}"
+      export KUBECONFIG="${local_sensitive_file.kubeconfig.filename}"
+
+      echo "=========================================="
+      echo "Running cluster audit..."
+      echo "=========================================="
+
+      # Run audit and save to file
+      ./kubectl --kubeconfig ${local_sensitive_file.kubeconfig.filename} version --short || echo "kubectl check failed"
+      ./scripts/audit-cluster.sh > cluster-audit-report.txt 2>&1 || echo "Audit script completed with warnings"
+
+      echo ""
+      echo "=========================================="
+      echo "Audit report saved to: cluster-audit-report.txt"
+      echo "=========================================="
+
+      # Show summary
+      echo ""
       echo "==================================="
       echo "Run:AI Cluster Onboarding Complete"
       echo "==================================="
@@ -490,5 +524,10 @@ resource "null_resource" "verify_deployment" {
       echo "Cluster ingress: https://${local.cluster_fqdn} (requires port 80 for TLS cert)"
       echo "==================================="
     EOT
+    working_dir = path.module
+  }
+
+  triggers = {
+    always_run = timestamp()  # Run on every apply to get latest state
   }
 }
