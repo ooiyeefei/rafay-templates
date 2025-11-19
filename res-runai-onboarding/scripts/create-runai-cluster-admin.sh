@@ -153,8 +153,8 @@ fi
 # Create user if doesn't exist (or was just deleted)
 if [ -z "${EXISTING_USER_ID}" ] || [ "${EXISTING_USER_ID}" == "null" ]; then
   # Create user with resetPassword: false to get temp password
-  # Use --server-response to capture HTTP status code
-  USER_RESPONSE=$(wget --server-response --content-on-error -q -O- \
+  # BusyBox wget compatible - use -S instead of --server-response, no --content-on-error
+  USER_RESPONSE=$(wget -S -q -O- \
     --header="Accept: application/json" \
     --header="Content-Type: application/json" \
     --header="Authorization: Bearer ${TOKEN}" \
