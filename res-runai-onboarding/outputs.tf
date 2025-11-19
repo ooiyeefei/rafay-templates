@@ -13,7 +13,12 @@ output "user_email" {
 }
 
 output "password" {
-  value       = try(data.local_sensitive_file.runai_user_password.content, "Check script logs for password or use Run:AI UI to reset")
-  description = "Run:AI user password (Run:AI generated temporary password - automatically reset if user already existed)"
+  value = try(
+    length(data.local_sensitive_file.runai_user_password.content) > 0
+      ? data.local_sensitive_file.runai_user_password.content
+      : "User already exists - please reset password in Run:AI UI at https://${data.local_file.runai_control_plane_url.content}",
+    "User already exists - please reset password in Run:AI UI at https://${data.local_file.runai_control_plane_url.content}"
+  )
+  description = "Run:AI user password (Run:AI generated temporary password for NEW users only. Existing users must reset password manually in Run:AI UI)"
   sensitive   = true
 }
