@@ -320,8 +320,21 @@ resource "helm_release" "runai_cluster" {
 }
 
 # ============================================
-# Step 5.5: Create Run:AI Cluster Administrator User
+# Step 5.5: Generate Password and Create Run:AI Cluster Administrator User
 # ============================================
+
+# Generate a random password for the Run:AI user
+resource "random_string" "runai_user_password" {
+  length  = 16
+  special = true
+  upper   = true
+  lower   = true
+  numeric = true
+}
+
+locals {
+  runai_user_password = random_string.runai_user_password.result
+}
 
 resource "null_resource" "create_runai_cluster_admin" {
   depends_on = [
@@ -333,7 +346,7 @@ resource "null_resource" "create_runai_cluster_admin" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
-    command     = "chmod +x ./scripts/create-runai-cluster-admin.sh; CLUSTER_UUID='${data.local_file.runai_cluster_uuid.content}' USER_EMAIL='${var.user_email}' ./scripts/create-runai-cluster-admin.sh"
+    command     = "chmod +x ./scripts/create-runai-cluster-admin.sh; CLUSTER_UUID='${data.local_file.runai_cluster_uuid.content}' USER_EMAIL='${var.user_email}' USER_PASSWORD='${local.runai_user_password}' ./scripts/create-runai-cluster-admin.sh"
     working_dir = path.module
   }
 
@@ -341,12 +354,9 @@ resource "null_resource" "create_runai_cluster_admin" {
     always_run   = timestamp()  # Force re-run on every apply (idempotent API calls)
     cluster_uuid = data.local_file.runai_cluster_uuid.content
     user_email   = var.user_email
+    password     = local.runai_user_password
   }
 }
-
-# No need to read files - we already have user_email from var.user_email
-# Password output is not critical for Terraform state since it's only shown once
-# User can retrieve it from script output logs or Run:AI UI password reset
 
 # ============================================
 # Step 6: Deploy Run:AI Ingress with TLS

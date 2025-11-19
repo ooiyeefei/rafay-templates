@@ -12,7 +12,8 @@ output "user_email" {
   description = "Run:AI user email (cluster-scoped Administrator)"
 }
 
-output "password_note" {
-  value       = "Temporary password is displayed in the script output logs. User can also reset password via Run:AI UI."
-  description = "Password retrieval instructions"
+output "password" {
+  value       = local.runai_user_password
+  description = "Run:AI user password"
+  sensitive   = true
 }
