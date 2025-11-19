@@ -97,11 +97,14 @@ printf "${GREEN}✓ Authentication successful${NC}\n\n"
 printf "${GREEN}Step 2: Creating user '${USER_EMAIL}'...${NC}\n"
 
 # Check if user already exists
-EXISTING_USER_ID=$(wget -q -O- \
+EXISTING_USER_RESPONSE=$(wget -q -O- \
   --header="Accept: application/json" \
   --header="Authorization: Bearer ${TOKEN}" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users" | \
-  ${JQ} -r ".[] | select(.email==\"${USER_EMAIL}\") | .id")
+  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users")
+
+printf "${YELLOW}DEBUG: Users list response (first 500 chars):${NC}\n${EXISTING_USER_RESPONSE:0:500}\n\n"
+
+EXISTING_USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.email==\"${USER_EMAIL}\") | .id")
 
 if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   printf "${YELLOW}User already exists with ID: ${EXISTING_USER_ID}${NC}\n"
@@ -111,30 +114,47 @@ if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   echo -n "" > user_password.txt
 else
   # Create user with resetPassword: false to get temp password
-  USER_RESPONSE=$(wget -q -O- \
+  # Use --server-response to capture HTTP status code
+  USER_RESPONSE=$(wget --server-response --content-on-error -q -O- \
     --header="Accept: application/json" \
     --header="Content-Type: application/json" \
     --header="Authorization: Bearer ${TOKEN}" \
     --post-data="{\"email\":\"${USER_EMAIL}\",\"resetPassword\":false}" \
-    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users")
+    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users" 2>&1)
 
   printf "${YELLOW}DEBUG: User creation response:${NC}\n${USER_RESPONSE}\n\n"
 
-  USER_ID=$(echo "${USER_RESPONSE}" | ${JQ} -r '.id')
-  GENERATED_PASSWORD=$(echo "${USER_RESPONSE}" | ${JQ} -r '.tempPassword // empty')
+  # Check if we got 409 Conflict (user already exists)
+  if echo "${USER_RESPONSE}" | grep -q "409 Conflict"; then
+    printf "${YELLOW}User already exists (409 Conflict). Fetching user ID...${NC}\n"
+    # Re-fetch to get user ID
+    EXISTING_USER_RESPONSE=$(wget -q -O- \
+      --header="Accept: application/json" \
+      --header="Authorization: Bearer ${TOKEN}" \
+      "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users")
+    USER_ID=$(echo "${EXISTING_USER_RESPONSE}" | ${JQ} -r ".[] | select(.email==\"${USER_EMAIL}\") | .id")
+    # Save empty password to indicate existing user
+    echo -n "" > user_password.txt
+    printf "${GREEN}✓ Found existing user with ID: ${USER_ID}${NC}\n"
+  else
+    # Extract JSON body (after blank line)
+    USER_JSON=$(echo "${USER_RESPONSE}" | sed -n '/^$/,${/^$/d;p}')
+    USER_ID=$(echo "${USER_JSON}" | ${JQ} -r '.id')
+    GENERATED_PASSWORD=$(echo "${USER_JSON}" | ${JQ} -r '.tempPassword // empty')
 
-  if [ -z "${USER_ID}" ] || [ "${USER_ID}" == "null" ]; then
-    printf "${RED}ERROR: Failed to create user${NC}\n"
-    printf "${RED}Response: ${USER_RESPONSE}${NC}\n"
-    exit 1
-  fi
+    if [ -z "${USER_ID}" ] || [ "${USER_ID}" == "null" ]; then
+      printf "${RED}ERROR: Failed to create user${NC}\n"
+      printf "${RED}Response: ${USER_RESPONSE}${NC}\n"
+      exit 1
+    fi
 
-  printf "${GREEN}✓ User created with ID: ${USER_ID}${NC}\n"
+    printf "${GREEN}✓ User created with ID: ${USER_ID}${NC}\n"
 
-  if [ -n "${GENERATED_PASSWORD}" ]; then
-    # Save the generated password to file for Terraform to read
-    echo -n "${GENERATED_PASSWORD}" > user_password.txt
-    printf "${GREEN}✓ Temporary password generated (will be available in Terraform outputs)${NC}\n"
+    if [ -n "${GENERATED_PASSWORD}" ]; then
+      # Save the generated password to file for Terraform to read
+      echo -n "${GENERATED_PASSWORD}" > user_password.txt
+      printf "${GREEN}✓ Temporary password generated (will be available in Terraform outputs)${NC}\n"
+    fi
   fi
 fi
 
