@@ -87,24 +87,29 @@ printf "${GREEN}✓ Authentication successful${NC}\n\n"
 if [ -n "${USER_ID}" ] && [ "${USER_ID}" != "null" ]; then
   printf "${GREEN}Step 2: Deleting user ${USER_ID}...${NC}\n"
 
-  # Use a workaround for DELETE since BusyBox wget doesn't support --method=DELETE
-  # We create a custom request using --header with X-HTTP-Method-Override
-  set +e
-  USER_DELETE_RESPONSE=$(wget -S -q -O- \
-    --header="Accept: application/json" \
-    --header="Authorization: Bearer ${TOKEN}" \
-    --header="X-HTTP-Method-Override: DELETE" \
-    --post-data="" \
-    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}" 2>&1)
-  USER_DELETE_EXIT=$?
-  set -e
+  # Check if curl is available (better for DELETE requests than BusyBox wget)
+  if command -v curl >/dev/null 2>&1; then
+    # Use curl for DELETE - following pattern from test-cluster-response.sh
+    set +e
+    USER_DELETE_RESPONSE=$(curl -s -X DELETE \
+      "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}" \
+      --header "Accept: application/json" \
+      --header "Authorization: Bearer ${TOKEN}" 2>&1)
+    USER_DELETE_EXIT=$?
+    set -e
 
-  printf "${YELLOW}DEBUG: User delete response:${NC}\n${USER_DELETE_RESPONSE}\n\n"
+    printf "${YELLOW}DEBUG: User delete response:${NC}\n${USER_DELETE_RESPONSE}\n\n"
 
-  if [ ${USER_DELETE_EXIT} -eq 0 ] || echo "${USER_DELETE_RESPONSE}" | grep -q "404 Not Found"; then
-    printf "${GREEN}✓ User deleted or already removed${NC}\n\n"
+    # Success if curl succeeded or response is empty (204 No Content)
+    if [ ${USER_DELETE_EXIT} -eq 0 ]; then
+      printf "${GREEN}✓ User deleted successfully${NC}\n\n"
+    else
+      printf "${YELLOW}WARNING: User deletion may have failed (non-critical)${NC}\n\n"
+    fi
   else
-    printf "${YELLOW}WARNING: User deletion may have failed (non-critical)${NC}\n\n"
+    # Fallback: Skip user deletion if curl not available
+    printf "${YELLOW}WARNING: curl not available, skipping user deletion${NC}\n"
+    printf "${YELLOW}User ${USER_EMAIL} (ID: ${USER_ID}) must be deleted manually in Run:AI UI${NC}\n\n"
   fi
 else
   printf "${YELLOW}Step 2: Skipping user deletion (no USER_ID provided)${NC}\n\n"
@@ -113,26 +118,29 @@ fi
 # Step 3: Delete cluster with force=true
 printf "${GREEN}Step 3: Deleting cluster ${CLUSTER_UUID}...${NC}\n"
 
-# BusyBox wget doesn't support --method=DELETE, use workaround with X-HTTP-Method-Override
-set +e
-CLUSTER_DELETE_RESPONSE=$(wget -S -q -O- \
-  --header="Accept: application/json" \
-  --header="Authorization: Bearer ${TOKEN}" \
-  --header="X-HTTP-Method-Override: DELETE" \
-  --post-data="" \
-  "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}?force=true" 2>&1)
-CLUSTER_DELETE_EXIT=$?
-set -e
+# Check if curl is available (better for DELETE requests than BusyBox wget)
+if command -v curl >/dev/null 2>&1; then
+  # Use curl for DELETE - following pattern from test-cluster-response.sh
+  set +e
+  CLUSTER_DELETE_RESPONSE=$(curl -s -X DELETE \
+    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}?force=true" \
+    --header "Accept: application/json" \
+    --header "Authorization: Bearer ${TOKEN}" 2>&1)
+  CLUSTER_DELETE_EXIT=$?
+  set -e
 
-# Check response
-printf "${YELLOW}DEBUG: Cluster delete response:${NC}\n${CLUSTER_DELETE_RESPONSE}\n\n"
+  printf "${YELLOW}DEBUG: Cluster delete response:${NC}\n${CLUSTER_DELETE_RESPONSE}\n\n"
 
-# Note: force=true returns 204 No Content on success
-# 404 means cluster already deleted (OK)
-if [ ${CLUSTER_DELETE_EXIT} -eq 0 ] || echo "${CLUSTER_DELETE_RESPONSE}" | grep -q "404 Not Found"; then
-  printf "${GREEN}✓ Cluster deletion initiated or already removed${NC}\n"
+  # Success if curl succeeded or response is empty (204 No Content)
+  if [ ${CLUSTER_DELETE_EXIT} -eq 0 ]; then
+    printf "${GREEN}✓ Cluster deletion initiated or already removed${NC}\n"
+  else
+    printf "${YELLOW}WARNING: Cluster deletion may have failed (non-critical)${NC}\n"
+  fi
 else
-  printf "${YELLOW}WARNING: Cluster deletion may have failed${NC}\n"
+  # Fallback: Skip cluster deletion if curl not available
+  printf "${YELLOW}WARNING: curl not available, skipping cluster deletion${NC}\n"
+  printf "${YELLOW}Cluster ${CLUSTER_UUID} must be deleted manually in Run:AI UI${NC}\n"
 fi
 
 printf "${GREEN}Terraform resources will now be destroyed${NC}\n"
