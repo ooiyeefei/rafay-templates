@@ -8,12 +8,11 @@ output "runai_control_plane_url" {
 }
 
 output "user_email" {
-  value       = try(data.local_file.runai_user_email.content, "")
+  value       = var.user_email
   description = "Run:AI user email (cluster-scoped Administrator)"
 }
 
-output "password" {
-  value       = try(data.local_sensitive_file.runai_user_password.content, "")
-  description = "Run:AI user password"
-  sensitive   = true
+output "password_note" {
+  value       = "Temporary password is displayed in the script output logs. User can also reset password via Run:AI UI."
+  description = "Password retrieval instructions"
 }

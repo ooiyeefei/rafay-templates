@@ -344,17 +344,9 @@ resource "null_resource" "create_runai_cluster_admin" {
   }
 }
 
-# Read user email (saved by script)
-data "local_file" "runai_user_email" {
-  depends_on = [null_resource.create_runai_cluster_admin]
-  filename   = "${path.module}/user_email.txt"
-}
-
-# Read user password (temporary password if user was created)
-data "local_sensitive_file" "runai_user_password" {
-  depends_on = [null_resource.create_runai_cluster_admin]
-  filename   = "${path.module}/user_password.txt"
-}
+# No need to read files - we already have user_email from var.user_email
+# Password output is not critical for Terraform state since it's only shown once
+# User can retrieve it from script output logs or Run:AI UI password reset
 
 # ============================================
 # Step 6: Deploy Run:AI Ingress with TLS
