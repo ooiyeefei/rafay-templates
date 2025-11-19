@@ -115,24 +115,34 @@ if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   # API: POST /api/v1/users/{userId}/reset-password
   printf "${YELLOW}DEBUG: Calling password reset endpoint: https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password${NC}\n"
 
+  # Temporarily disable exit on error for password reset (it might not be supported)
+  set +e
   RESET_RESPONSE=$(wget --server-response --content-on-error -q -O- \
     --method=POST \
     --header="Accept: application/json" \
     --header="Content-Type: application/json" \
     --header="Authorization: Bearer ${TOKEN}" \
     "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password" 2>&1)
+  RESET_EXIT_CODE=$?
+  set -e
 
-  printf "${YELLOW}DEBUG: Password reset response:${NC}\n${RESET_RESPONSE}\n\n"
+  printf "${YELLOW}DEBUG: Password reset response (exit code: ${RESET_EXIT_CODE}):${NC}\n${RESET_RESPONSE}\n\n"
 
-  RESET_PASSWORD=$(echo "${RESET_RESPONSE}" | ${JQ} -r '.tempPassword // empty')
-
-  if [ -n "${RESET_PASSWORD}" ]; then
-    echo -n "${RESET_PASSWORD}" > user_password.txt
-    printf "${GREEN}✓ Password reset successful (will be available in Terraform outputs)${NC}\n"
+  if [ ${RESET_EXIT_CODE} -eq 0 ]; then
+    RESET_PASSWORD=$(echo "${RESET_RESPONSE}" | sed -n '/^$/,${/^$/d;p}' | ${JQ} -r '.tempPassword // empty')
+    if [ -n "${RESET_PASSWORD}" ]; then
+      echo -n "${RESET_PASSWORD}" > user_password.txt
+      printf "${GREEN}✓ Password reset successful (will be available in Terraform outputs)${NC}\n"
+    else
+      echo -n "" > user_password.txt
+      printf "${YELLOW}Warning: Password reset returned no password. Response: ${RESET_RESPONSE}${NC}\n"
+    fi
   else
-    # Fallback to empty password if reset failed
+    # Password reset API not available or failed
     echo -n "" > user_password.txt
-    printf "${YELLOW}Warning: Password reset may have failed. Response: ${RESET_RESPONSE}${NC}\n"
+    printf "${YELLOW}Warning: Password reset API failed (404 Not Found).${NC}\n"
+    printf "${YELLOW}The user already exists. Use Run:AI UI to reset password if needed.${NC}\n"
+    printf "${YELLOW}Login at: https://${RUNAI_CONTROL_PLANE_URL}${NC}\n"
   fi
 else
   # Create user with resetPassword: false to get temp password
@@ -161,24 +171,34 @@ else
     printf "${YELLOW}Resetting password for existing user...${NC}\n"
     printf "${YELLOW}DEBUG: Calling password reset endpoint: https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password${NC}\n"
 
+    # Temporarily disable exit on error for password reset (it might not be supported)
+    set +e
     RESET_RESPONSE=$(wget --server-response --content-on-error -q -O- \
       --method=POST \
       --header="Accept: application/json" \
       --header="Content-Type: application/json" \
       --header="Authorization: Bearer ${TOKEN}" \
       "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password" 2>&1)
+    RESET_EXIT_CODE=$?
+    set -e
 
-    printf "${YELLOW}DEBUG: Password reset response:${NC}\n${RESET_RESPONSE}\n\n"
+    printf "${YELLOW}DEBUG: Password reset response (exit code: ${RESET_EXIT_CODE}):${NC}\n${RESET_RESPONSE}\n\n"
 
-    RESET_PASSWORD=$(echo "${RESET_RESPONSE}" | ${JQ} -r '.tempPassword // empty')
-
-    if [ -n "${RESET_PASSWORD}" ]; then
-      echo -n "${RESET_PASSWORD}" > user_password.txt
-      printf "${GREEN}✓ Password reset successful (will be available in Terraform outputs)${NC}\n"
+    if [ ${RESET_EXIT_CODE} -eq 0 ]; then
+      RESET_PASSWORD=$(echo "${RESET_RESPONSE}" | sed -n '/^$/,${/^$/d;p}' | ${JQ} -r '.tempPassword // empty')
+      if [ -n "${RESET_PASSWORD}" ]; then
+        echo -n "${RESET_PASSWORD}" > user_password.txt
+        printf "${GREEN}✓ Password reset successful (will be available in Terraform outputs)${NC}\n"
+      else
+        echo -n "" > user_password.txt
+        printf "${YELLOW}Warning: Password reset returned no password. Response: ${RESET_RESPONSE}${NC}\n"
+      fi
     else
-      # Fallback to empty password if reset failed
+      # Password reset API not available or failed
       echo -n "" > user_password.txt
-      printf "${YELLOW}Warning: Password reset may have failed. Response: ${RESET_RESPONSE}${NC}\n"
+      printf "${YELLOW}Warning: Password reset API failed (404 Not Found).${NC}\n"
+      printf "${YELLOW}The user already exists. Use Run:AI UI to reset password if needed.${NC}\n"
+      printf "${YELLOW}Login at: https://${RUNAI_CONTROL_PLANE_URL}${NC}\n"
     fi
   else
     # Extract JSON body (after blank line)
