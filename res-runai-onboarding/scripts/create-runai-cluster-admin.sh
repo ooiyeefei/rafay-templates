@@ -112,13 +112,15 @@ if [ -n "${EXISTING_USER_ID}" ] && [ "${EXISTING_USER_ID}" != "null" ]; then
   USER_ID="${EXISTING_USER_ID}"
 
   # Reset password for existing user using API
-  # API: POST /api/v1/users/{id}/reset-password
-  RESET_RESPONSE=$(wget -q -O- \
+  # API: POST /api/v1/users/{userId}/reset-password
+  printf "${YELLOW}DEBUG: Calling password reset endpoint: https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password${NC}\n"
+
+  RESET_RESPONSE=$(wget --server-response --content-on-error -q -O- \
+    --method=POST \
     --header="Accept: application/json" \
     --header="Content-Type: application/json" \
     --header="Authorization: Bearer ${TOKEN}" \
-    --post-data="{}" \
-    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password")
+    "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password" 2>&1)
 
   printf "${YELLOW}DEBUG: Password reset response:${NC}\n${RESET_RESPONSE}\n\n"
 
@@ -157,12 +159,14 @@ else
 
     # Reset password for existing user
     printf "${YELLOW}Resetting password for existing user...${NC}\n"
-    RESET_RESPONSE=$(wget -q -O- \
+    printf "${YELLOW}DEBUG: Calling password reset endpoint: https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password${NC}\n"
+
+    RESET_RESPONSE=$(wget --server-response --content-on-error -q -O- \
+      --method=POST \
       --header="Accept: application/json" \
       --header="Content-Type: application/json" \
       --header="Authorization: Bearer ${TOKEN}" \
-      --post-data="{}" \
-      "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password")
+      "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}/reset-password" 2>&1)
 
     printf "${YELLOW}DEBUG: Password reset response:${NC}\n${RESET_RESPONSE}\n\n"
 
