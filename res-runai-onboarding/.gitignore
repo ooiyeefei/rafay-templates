@@ -18,6 +18,7 @@ kubeconfig.yaml
 # Downloaded binaries (from setup.sh)
 jq
 kubectl
+curl
 # Note: BusyBox wget is available in Rafay container, no need to download
 
 # Terraform files

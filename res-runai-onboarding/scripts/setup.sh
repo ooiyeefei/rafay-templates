@@ -35,4 +35,20 @@ else
   echo "[+] kubectl already exists, skipping download"
 fi
 
+# Download curl (for DELETE requests in delete-runai-cluster.sh)
+if [ ! -f "./curl" ]; then
+  echo "[+] Downloading curl binary..."
+  # Download statically-linked curl from https://github.com/moparisthebest/static-curl
+  wget -q https://github.com/moparisthebest/static-curl/releases/download/v8.11.0/curl-amd64 -O curl
+  if [ $? -eq 0 ]; then
+    echo "[+] Successfully downloaded curl binary"
+    chmod +x ./curl
+  else
+    echo "[-] Failed to download curl"
+    exit 1
+  fi
+else
+  echo "[+] curl already exists, skipping download"
+fi
+
 echo "[+] Setup complete"

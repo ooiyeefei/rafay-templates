@@ -87,11 +87,16 @@ printf "${GREEN}✓ Authentication successful${NC}\n\n"
 if [ -n "${USER_ID}" ] && [ "${USER_ID}" != "null" ]; then
   printf "${GREEN}Step 2: Deleting user ${USER_ID}...${NC}\n"
 
-  # Check if curl is available (better for DELETE requests than BusyBox wget)
-  if command -v curl >/dev/null 2>&1; then
+  # Use locally downloaded curl binary (downloaded by setup.sh)
+  CURL="./curl"
+  if [ ! -f "${CURL}" ]; then
+    printf "${RED}ERROR: curl binary not found at ${CURL}${NC}\n"
+    printf "${YELLOW}WARNING: curl not available, skipping user deletion${NC}\n"
+    printf "${YELLOW}User ${USER_EMAIL} (ID: ${USER_ID}) must be deleted manually in Run:AI UI${NC}\n\n"
+  else
     # Use curl for DELETE - following pattern from test-cluster-response.sh
     set +e
-    USER_DELETE_RESPONSE=$(curl -s -X DELETE \
+    USER_DELETE_RESPONSE=$(${CURL} -s -X DELETE \
       "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/users/${USER_ID}" \
       --header "Accept: application/json" \
       --header "Authorization: Bearer ${TOKEN}" 2>&1)
@@ -106,10 +111,6 @@ if [ -n "${USER_ID}" ] && [ "${USER_ID}" != "null" ]; then
     else
       printf "${YELLOW}WARNING: User deletion may have failed (non-critical)${NC}\n\n"
     fi
-  else
-    # Fallback: Skip user deletion if curl not available
-    printf "${YELLOW}WARNING: curl not available, skipping user deletion${NC}\n"
-    printf "${YELLOW}User ${USER_EMAIL} (ID: ${USER_ID}) must be deleted manually in Run:AI UI${NC}\n\n"
   fi
 else
   printf "${YELLOW}Step 2: Skipping user deletion (no USER_ID provided)${NC}\n\n"
@@ -118,11 +119,16 @@ fi
 # Step 3: Delete cluster with force=true
 printf "${GREEN}Step 3: Deleting cluster ${CLUSTER_UUID}...${NC}\n"
 
-# Check if curl is available (better for DELETE requests than BusyBox wget)
-if command -v curl >/dev/null 2>&1; then
+# Use locally downloaded curl binary (downloaded by setup.sh)
+CURL="./curl"
+if [ ! -f "${CURL}" ]; then
+  printf "${RED}ERROR: curl binary not found at ${CURL}${NC}\n"
+  printf "${YELLOW}WARNING: curl not available, skipping cluster deletion${NC}\n"
+  printf "${YELLOW}Cluster ${CLUSTER_UUID} must be deleted manually in Run:AI UI${NC}\n"
+else
   # Use curl for DELETE - following pattern from test-cluster-response.sh
   set +e
-  CLUSTER_DELETE_RESPONSE=$(curl -s -X DELETE \
+  CLUSTER_DELETE_RESPONSE=$(${CURL} -s -X DELETE \
     "https://${RUNAI_CONTROL_PLANE_URL}/api/v1/clusters/${CLUSTER_UUID}?force=true" \
     --header "Accept: application/json" \
     --header "Authorization: Bearer ${TOKEN}" 2>&1)
@@ -137,10 +143,6 @@ if command -v curl >/dev/null 2>&1; then
   else
     printf "${YELLOW}WARNING: Cluster deletion may have failed (non-critical)${NC}\n"
   fi
-else
-  # Fallback: Skip cluster deletion if curl not available
-  printf "${YELLOW}WARNING: curl not available, skipping cluster deletion${NC}\n"
-  printf "${YELLOW}Cluster ${CLUSTER_UUID} must be deleted manually in Run:AI UI${NC}\n"
 fi
 
 printf "${GREEN}Terraform resources will now be destroyed${NC}\n"
