@@ -38,13 +38,31 @@ fi
 # Download curl (for DELETE requests in delete-runai-cluster.sh)
 if [ ! -f "./curl" ]; then
   echo "[+] Downloading curl binary..."
-  # Download statically-linked curl from https://github.com/moparisthebest/static-curl
-  wget -q https://github.com/moparisthebest/static-curl/releases/download/v8.11.0/curl-amd64 -O curl
-  if [ $? -eq 0 ]; then
-    echo "[+] Successfully downloaded curl binary"
-    chmod +x ./curl
+  CURL_VERSION="8.17.0"  # Use latest secure version
+  CURL_URL="https://github.com/moparisthebest/static-curl/releases/download/v${CURL_VERSION}/curl-amd64"
+  CHECKSUM_URL="${CURL_URL}.sha256"
+
+  # Download binary and checksum
+  echo "[+] Downloading curl v${CURL_VERSION}..."
+  wget -q "$CURL_URL" -O curl.tmp
+  wget -q "$CHECKSUM_URL" -O curl.sha256
+
+  if [ $? -eq 0 ] && [ -f "curl.sha256" ]; then
+    # Verify integrity
+    echo "[+] Verifying curl binary integrity..."
+    if echo "$(cat curl.sha256) curl.tmp" | sha256sum -c --quiet; then
+      echo "[+] Checksum verified successfully"
+      mv curl.tmp curl
+      chmod +x ./curl
+      rm curl.sha256
+    else
+      echo "[-] Checksum verification failed - removing invalid file"
+      rm -f curl.tmp curl.sha256
+      exit 1
+    fi
   else
-    echo "[-] Failed to download curl"
+    echo "[-] Failed to download curl or checksum"
+    rm -f curl.tmp curl.sha256
     exit 1
   fi
 else
